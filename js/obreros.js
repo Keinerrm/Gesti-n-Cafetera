@@ -1,0 +1,602 @@
+/* ============================================
+   obreros.js — Gestión de Obreros
+   Modificado con Premium Design System
+   ============================================ */
+
+const Obreros = {
+    activeTab: 'activos',
+
+    async render() {
+        const obrerosAll = await db.getByFinca('obreros');
+
+        // Asign defaults for legacy data inline dynamically
+        const obreros = obrerosAll.map(o => {
+            if (!o.estado) o.estado = 'activo';
+            return o;
+        });
+
+        const activos = obreros.filter(o => o.estado === 'activo');
+        const inactivos = obreros.filter(o => o.estado === 'inactivo');
+
+        const app = document.getElementById('app');
+        app.innerHTML = `
+            <div class="animate-in">
+                <div class="header-premium" style="justify-content: space-between; flex-wrap: wrap;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="header-icon"><i data-lucide="users"></i></div>
+                        <div>
+                            <h2>Personal</h2>
+                            <p>Gestión de trabajadores de la finca</p>
+                            <div style="display:flex;gap:1rem;margin-top:0.25rem;font-size:0.8rem">
+                                <span style="color:var(--color-primary)"><strong>${activos.length}</strong> Activos</span>
+                                <span style="color:var(--text-muted)"><strong>${inactivos.length}</strong> Inactivos</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-premium primary" onclick="Obreros.showForm()">
+                        <i data-lucide="user-plus"></i>
+                        <span class="desktop-only" style="margin-left:4px">Nuevo Obrero</span>
+                    </button>
+                </div>
+
+                <div class="search-box mb-2" style="position:relative; margin-bottom:16px;">
+                    <i data-lucide="search" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); width:20px; height:20px"></i>
+                    <input type="text" class="input-premium" id="search-obreros" placeholder="Buscar por nombre o documento..." oninput="Obreros.filter(this.value)" style="padding-left:48px;">
+                </div>
+
+                <div class="tabs mb-2" style="display:flex; gap:8px; margin-bottom:24px;">
+                    <button class="btn-premium ${this.activeTab === 'activos' ? 'primary' : 'secondary'} flex-1" onclick="Obreros.switchTab('activos')">
+                        <i data-lucide="user-check"></i> Activos (${activos.length})
+                    </button>
+                    <button class="btn-premium ${this.activeTab === 'inactivos' ? 'primary' : 'secondary'} flex-1" onclick="Obreros.switchTab('inactivos')">
+                        <i data-lucide="user-minus"></i> Inactivos (${inactivos.length})
+                    </button>
+                </div>
+
+                <div id="obreros-list">
+                    ${this.activeTab === 'activos'
+                ? (activos.length === 0 ? '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="users" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px"></i>No hay obreros activos.</div>' : activos.map(o => Obreros.renderItem(o)).join(''))
+                : (inactivos.length === 0 ? '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="users" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px"></i>No hay obreros inactivos.</div>' : inactivos.map(o => Obreros.renderItem(o)).join(''))
+            }
+                </div>
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    switchTab(tab) {
+        this.activeTab = tab;
+        this.render();
+    },
+
+    renderItem(o) {
+        const initials = o.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        const isInactive = o.estado === 'inactivo';
+
+        return `
+            <div class="worker-row-premium" style="${isInactive ? 'opacity:0.75;' : ''}">
+                <div class="worker-info" onclick="Obreros.showDetail(${o.id})" style="cursor:pointer; flex:1;">
+                    <div class="worker-avatar" style="${isInactive ? 'background:var(--bg-surface-hover); color:var(--text-muted)' : 'background:rgba(22, 163, 74, 0.1); color:var(--color-primary)'}">${initials}</div>
+                    <div class="worker-details">
+                        <h3>${o.nombre} <span class="badge ${isInactive ? '' : 'badge-active'}" style="margin-left:8px; font-size:0.65rem; padding:2px 6px; ${isInactive ? 'background:var(--bg-surface-hover); color:var(--text-muted)' : ''}">${o.estado}</span></h3>
+                        <span class="text-muted tabular-data" style="font-size:0.8rem">Doc: ${o.documento || 'N/A'} &middot; Tel: ${o.telefono || 'N/A'}</span>
+                    </div>
+                </div>
+                <div class="worker-action" style="gap:8px">
+                    <button class="btn-icon-only" onclick="Obreros.showForm(${JSON.stringify(o).replace(/"/g, '&quot;')})" title="Editar" style="border:none;background:transparent;width:36px;height:36px">
+                        <i data-lucide="pencil" style="width:18px;height:18px"></i>
+                    </button>
+                    <button class="btn-icon-only" onclick="Obreros.showHistorial(${o.id})" title="Ver Historial" style="border:none;background:transparent;width:36px;height:36px">
+                        <i data-lucide="bar-chart-2" style="width:18px;height:18px"></i>
+                    </button>
+                    ${!isInactive
+                ? `<button class="btn-icon-only" onclick="Obreros.desactivar(${o.id})" title="Desactivar" style="border:none;background:rgba(239, 68, 68, 0.1);color:var(--color-danger);width:36px;height:36px"><i data-lucide="user-minus" style="width:18px;height:18px"></i></button>`
+                : `<button class="btn-icon-only" onclick="Obreros.reactivar(${o.id})" title="Reactivar" style="border:none;background:rgba(22, 163, 74, 0.1);color:var(--color-primary);width:36px;height:36px"><i data-lucide="user-check" style="width:18px;height:18px"></i></button>`}
+                </div>
+            </div>
+        `;
+    },
+
+    async filter(query) {
+        const obrerosAll = await db.getByFinca('obreros');
+        const q = query.toLowerCase();
+
+        const obreros = obrerosAll.map(o => {
+            if (!o.estado) o.estado = 'activo';
+            return o;
+        }).filter(o => o.estado === this.activeTab.slice(0, -1)); // 'activos' -> 'activo'
+
+        const filtered = obreros.filter(o =>
+            o.nombre.toLowerCase().includes(q) ||
+            (o.documento && o.documento.toLowerCase().includes(q))
+        );
+        document.getElementById('obreros-list').innerHTML = filtered.length === 0
+            ? '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="search-x" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px"></i>No se encontraron resultados</div>'
+            : filtered.map(o => Obreros.renderItem(o)).join('');
+
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    showForm(obrero = null) {
+        const isEdit = obrero !== null;
+        const html = `
+            <div class="modal-system-overlay" onclick="Obreros.closeModal(event)" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <div class="card-premium animate-in" onclick="event.stopPropagation()" style="width:100%; max-width:500px; padding:24px; max-height:90vh; overflow-y:auto">
+                    <div class="header-premium" style="margin-bottom:24px;">
+                        <div class="header-icon"><i data-lucide="${isEdit ? 'user-cog' : 'user-plus'}"></i></div>
+                        <div style="flex:1">
+                            <h3 style="margin:0; font-size:1.2rem">${isEdit ? 'Editar Obrero' : 'Nuevo Obrero'}</h3>
+                        </div>
+                        <button class="btn-icon-only" onclick="Obreros.closeModal()" style="border:none; background:transparent"><i data-lucide="x"></i></button>
+                    </div>
+                    
+                    <form onsubmit="Obreros.save(event, ${isEdit ? obrero.id : 'null'})">
+                        <div class="input-group" style="margin-bottom:16px">
+                            <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Nombre completo</label>
+                            <input type="text" class="input-premium" id="ob-nombre" value="${isEdit ? obrero.nombre : ''}" required placeholder="Ej: Juan Pérez">
+                        </div>
+                        <div class="grid-2" style="margin-bottom:16px">
+                            <div class="input-group">
+                                <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Documento</label>
+                                <input type="text" class="input-premium tabular-data" id="ob-documento" value="${isEdit ? (obrero.documento || '') : ''}" required maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Cédula">
+                            </div>
+                            <div class="input-group">
+                                <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Teléfono</label>
+                                <input type="tel" class="input-premium tabular-data" id="ob-telefono" value="${isEdit ? (obrero.telefono || '') : ''}" required maxlength="15" oninput="this.value = this.value.replace(/[^0-9+]/g, '')" placeholder="Número celular">
+                            </div>
+                        </div>
+                        <div class="input-group" style="margin-bottom:16px">
+                            <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Fecha de ingreso</label>
+                            <input type="date" class="input-premium" id="ob-fecha" value="${isEdit ? (obrero.fechaIngreso || '') : new Date().toLocaleDateString('en-CA')}">
+                        </div>
+                        ${isEdit ? `
+                            <div class="input-group" style="margin-bottom:24px">
+                                <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Estado</label>
+                                <select class="input-premium" id="ob-estado">
+                                    <option value="activo" ${obrero.estado === 'activo' ? 'selected' : ''}>Activo (Trabajando)</option>
+                                    <option value="inactivo" ${obrero.estado === 'inactivo' ? 'selected' : ''}>Inactivo (Retirado)</option>
+                                </select>
+                            </div>
+                        ` : '<div style="margin-bottom:24px"></div>'}
+                        
+                        <div class="btn-group" style="display:flex; gap:12px; margin-top:24px">
+                            <button type="button" class="btn-premium secondary flex-1" onclick="Obreros.closeModal()">Cancelar</button>
+                            <button type="submit" class="btn-premium primary flex-1">
+                                <i data-lucide="check"></i> ${isEdit ? 'Actualizar' : 'Guardar'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    async save(e, id) {
+        e.preventDefault();
+        const data = {
+            nombre: document.getElementById('ob-nombre').value.trim(),
+            documento: document.getElementById('ob-documento').value.trim(),
+            telefono: document.getElementById('ob-telefono').value.trim(),
+            fechaIngreso: document.getElementById('ob-fecha').value,
+            estado: id ? document.getElementById('ob-estado')?.value || 'activo' : 'activo'
+        };
+
+        if (!data.nombre) return App.toast('Nombre es obligatorio', 'error');
+        if (!data.documento) return App.toast('El documento es obligatorio', 'error');
+        if (!data.telefono) return App.toast('El teléfono es obligatorio', 'error');
+
+        if (id) {
+            data.id = id;
+            const currentObj = await db.get('obreros', id);
+
+            if (currentObj.estado === 'activo' && data.estado === 'inactivo') {
+                data.fechaRetiro = new Date().toLocaleDateString('en-CA');
+            } else if (currentObj.estado === 'inactivo' && data.estado === 'activo') {
+                data.fechaRetiro = null;
+            } else {
+                data.fechaRetiro = currentObj.fechaRetiro || null;
+            }
+
+            await db.put('obreros', data);
+            App.toast('Obrero actualizado', 'success');
+        } else {
+            await db.add('obreros', data);
+            App.toast('Obrero registrado', 'success');
+        }
+
+        Obreros.closeModal();
+        Obreros.render();
+    },
+
+    async desactivar(id) {
+        const obrero = await db.get('obreros', id);
+        if (!obrero) return;
+
+        App.confirmDelete({
+            title: 'Desactivar Obrero',
+            message: `¿Desactivar a <strong>${obrero.nombre}</strong>? No aparecerá en listados de nómina activos, pero mantendrá su historial.`,
+            confirmText: 'Desactivar',
+            icon: '📉',
+            onConfirm: async () => {
+                obrero.estado = 'inactivo';
+                obrero.fechaRetiro = new Date().toLocaleDateString('en-CA');
+                await db.put('obreros', obrero);
+                App.toast('Obrero inactivado', 'info');
+                Obreros.render();
+            }
+        });
+    },
+
+    async reactivar(id) {
+        const obrero = await db.get('obreros', id);
+        if (!obrero) return;
+
+        App.confirm({
+            title: 'Reactivar Obrero',
+            message: `¿Volver a activar a <strong>${obrero.nombre}</strong>?`,
+            confirmText: 'Reactivar',
+            icon: '✨',
+            onConfirm: async () => {
+                obrero.estado = 'activo';
+                obrero.fechaRetiro = null;
+                await db.put('obreros', obrero);
+                App.toast('Obrero reactivado', 'success');
+                Obreros.render();
+            }
+        });
+    },
+
+    async showDetail(id) {
+        const obrero = await db.get('obreros', id);
+        if (!obrero) return;
+
+        const jornales = await db.getAllByIndex('jornales', 'obreroId', id);
+        const totalKilos = jornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+        const totalGanado = jornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+        const diasTrabajados = jornales.length;
+
+        const comidas = await db.getAllByIndex('comida', 'obreroId', id);
+        const totalComida = comidas.reduce((s, c) => s + (c.valor || 0), 0);
+
+        const ventas = await db.getAllByIndex('ventasCaja', 'obreroId', id);
+        const totalCaja = ventas.filter(v => v.fiado).reduce((s, v) => s + (v.valorTotal || 0), 0);
+
+        const isInactive = obrero.estado === 'inactivo';
+
+        const html = `
+            <div class="modal-system-overlay" onclick="Obreros.closeModal(event)" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <div class="card-premium animate-in" onclick="event.stopPropagation()" style="width:100%; max-width:550px; padding:24px; max-height:90vh; overflow-y:auto">
+                    
+                    <div class="header-premium" style="margin-bottom:16px;">
+                        <div class="header-icon" style="${isInactive ? 'background:var(--bg-surface-hover);color:var(--text-muted)' : ''}"><i data-lucide="user"></i></div>
+                        <div style="flex:1">
+                            <h3 style="margin:0; font-size:1.4rem; line-height:1.2">${obrero.nombre}</h3>
+                            <div style="margin-top:4px"><span class="badge ${isInactive ? '' : 'badge-active'}" style="${isInactive ? 'background:var(--bg-surface-hover); color:var(--text-muted)' : ''}">${obrero.estado}</span></div>
+                        </div>
+                        <button class="btn-icon-only" onclick="Obreros.closeModal()" style="border:none; background:transparent"><i data-lucide="x"></i></button>
+                    </div>
+
+                    <div style="background:var(--bg-app); border-radius:var(--border-radius-md); padding:16px; margin-bottom:24px; border:1px solid var(--border-color)">
+                        <div class="grid-2 tabular-data" style="gap:12px">
+                            <div><span class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600">Doc:</span> <br>${obrero.documento || 'N/A'}</div>
+                            <div><span class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600">Tel:</span> <br>${obrero.telefono || 'N/A'}</div>
+                            <div><span class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600">Ingreso:</span> <br>${obrero.fechaIngreso || 'N/A'}</div>
+                            <div><span class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600">Retiro:</span> <br>${obrero.fechaRetiro || '-'}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-muted" style="font-size:0.85rem; text-transform:uppercase; font-weight:700; margin-bottom:12px">Resumen Global</div>
+                    <div class="grid-2 mb-2" style="margin-bottom:24px; gap:8px">
+                        <div class="card-premium" style="padding:12px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Días trabajados</div>
+                            <div style="font-size:1.2rem; font-weight:700">${diasTrabajados}</div>
+                        </div>
+                        <div class="card-premium" style="padding:12px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Total kilos</div>
+                            <div style="font-size:1.2rem; font-weight:700">${totalKilos.toLocaleString()}</div>
+                        </div>
+                        <div class="card-premium" style="padding:12px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Ganancias Brutas</div>
+                            <div class="tabular-data" style="font-size:1.2rem; font-weight:700; color:var(--color-primary)">$${totalGanado.toLocaleString()}</div>
+                        </div>
+                        <div class="card-premium" style="padding:12px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Deuda Historica</div>
+                            <div class="tabular-data" style="font-size:1.2rem; font-weight:700; color:var(--color-danger)">$${(totalComida + totalCaja).toLocaleString()}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="btn-group" style="display:flex; gap:8px;">
+                        <button class="btn-premium secondary flex-1" onclick="Obreros.closeModal(); Obreros.showForm(${JSON.stringify(obrero).replace(/"/g, '&quot;')})">
+                            <i data-lucide="pencil"></i> Editar
+                        </button>
+                        <button class="btn-premium flex-1" style="background:var(--color-info);color:#fff" onclick="Obreros.closeModal(); Obreros.showHistorial(${id})">
+                            <i data-lucide="bar-chart-2"></i> Historial
+                        </button>
+                        ${obrero.estado === 'activo'
+                ? `<button class="btn-icon-only" style="background:rgba(239, 68, 68, 0.1);color:var(--color-danger);border-color:transparent" onclick="Obreros.closeModal(); Obreros.desactivar(${id})"><i data-lucide="user-minus"></i></button>`
+                : `<button class="btn-icon-only" style="background:rgba(22, 163, 74, 0.1);color:var(--color-primary);border-color:transparent" onclick="Obreros.closeModal(); Obreros.reactivar(${id})"><i data-lucide="user-check"></i></button>`}
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    async showHistorial(id) {
+        const obrero = await db.get('obreros', id);
+        if (!obrero) return;
+
+        // Fetch all related records
+        const jornales = await db.getAllByIndex('jornales', 'obreroId', id);
+        const comidas = await db.getAllByIndex('comida', 'obreroId', id);
+        const ventas = await db.getAllByIndex('ventasCaja', 'obreroId', id);
+        const pagosAll = await db.getAllByIndex('pagos', 'obreroId', id);
+        const pagos = pagosAll.filter(p => p.estado !== 'anulado');
+
+        const lotes = await db.getByFinca('lotes');
+        const ltMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
+        const productos = await db.getByFinca('productos');
+        const prMap = Object.fromEntries(productos.map(p => [p.id, p.nombre]));
+
+        // Calculate Totals
+        const totalJornales = jornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+        const totalComida = comidas.reduce((s, c) => s + (c.valor || 0), 0);
+        const ventasFiado = ventas.filter(v => v.fiado);
+        const totalTienda = ventasFiado.reduce((s, v) => s + (v.valorTotal || 0), 0);
+        const totalPagado = pagos.reduce((s, p) => s + (p.netoAPagar || 0), 0);
+
+        const saldoActual = totalJornales - totalComida - totalTienda - totalPagado;
+
+        // Merge and Map events into a unified timeline array
+        let timeline = [];
+
+        jornales.forEach(j => {
+            timeline.push({ fecha: j.fecha, tipo: 'Jornal', detalle: `${ltMap[j.loteId] || 'Lote'} (${j.kilosRecolectados}kg)`, valor: j.totalDia, styleClass: 'color:var(--color-primary)', isPago: false, obj: j });
+        });
+        comidas.forEach(c => {
+            timeline.push({ fecha: c.fecha, tipo: 'Comida', detalle: c.tipo, valor: -c.valor, styleClass: 'color:var(--color-danger)', isPago: false, obj: c });
+        });
+        ventasFiado.forEach(v => {
+            timeline.push({ fecha: v.fecha, tipo: 'Tienda', detalle: prMap[v.productoId] || v.descripcion || 'Compra', valor: -v.valorTotal, styleClass: 'color:var(--color-danger)', isPago: false, obj: v });
+        });
+        pagos.forEach(p => {
+            timeline.push({ fecha: p.fechaPago, tipo: 'Liquidación', detalle: `(${p.fechaInicio} al ${p.fechaFin})`, valor: -(p.totalGanado - (p.descComida || 0) - (p.descCaja || 0)), displayValor: -p.netoAPagar, styleClass: 'color:var(--text-muted)', isPago: true, obj: p });
+        });
+
+        // Sort chronological
+        timeline.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+        Obreros._currentPdfData = {
+            obrero, totalJornales, totalComida, totalTienda, totalPagado, saldoActual, timeline
+        };
+
+        const html = `
+            <div class="modal-system-overlay" onclick="Obreros.closeModal(event)" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <div class="card-premium animate-in" onclick="event.stopPropagation()" style="width:100%; max-width:650px; padding:24px; max-height:95vh; display:flex; flex-direction:column">
+                    
+                    <div class="header-premium" style="margin-bottom:16px; flex-shrink:0;">
+                        <div class="header-icon" style="background:var(--color-info); color:#fff"><i data-lucide="bar-chart-2"></i></div>
+                        <div style="flex:1">
+                            <h3 style="margin:0; font-size:1.2rem; line-height:1.2">Historial: ${obrero.nombre}</h3>
+                            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px">Doc: ${obrero.documento || 'N/A'} &middot; Ingreso: ${obrero.fechaIngreso || 'N/A'}</div>
+                        </div>
+                        <button class="btn-icon-only" onclick="Obreros.closeModal()" style="border:none; background:transparent"><i data-lucide="x"></i></button>
+                    </div>
+
+                    <div class="grid-4 tabular-data" style="gap:8px; margin-bottom:16px; flex-shrink:0;">
+                        <div class="card-premium" style="padding:10px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Jornales</div>
+                            <div style="font-size:1.1rem; font-weight:700; color:var(--color-primary)">$${totalJornales.toLocaleString()}</div>
+                        </div>
+                        <div class="card-premium" style="padding:10px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Gastos</div>
+                            <div style="font-size:1.1rem; font-weight:700; color:var(--color-danger)">-$${(totalComida + totalTienda).toLocaleString()}</div>
+                        </div>
+                        <div class="card-premium" style="padding:10px; background:var(--bg-app)!important">
+                            <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Pagados</div>
+                            <div style="font-size:1.1rem; font-weight:700; color:var(--text-muted)">-$${totalPagado.toLocaleString()}</div>
+                        </div>
+                        <div class="card-premium" style="padding:10px; background:var(--bg-surface-hover)!important; border-color:var(--color-brand)!important">
+                            <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Saldo Final</div>
+                            <div style="font-size:1.1rem; font-weight:700; ${saldoActual >= 0 ? 'color:var(--color-primary)' : 'color:var(--color-danger)'}">$${saldoActual.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    <div class="tabs" style="display:flex; gap:8px; margin-bottom:16px; flex-shrink:0;">
+                        <button class="btn-premium primary flex-1" id="btn-tab-ob-todo" onclick="Obreros.verTabHistorial('todo')" style="font-size:0.9rem">
+                            Línea de Vida
+                        </button>
+                        <button class="btn-premium secondary flex-1" id="btn-tab-ob-pagos" onclick="Obreros.verTabHistorial('pagos')" style="font-size:0.9rem">
+                            Nóminas Pagadas
+                        </button>
+                    </div>
+
+                    <div id="ob-content-todo" style="flex:1; overflow-y:auto; min-height:200px; margin-bottom:16px; border:1px solid var(--border-color); border-radius:var(--border-radius-md);">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead style="position:sticky; top:0; background:var(--bg-surface-hover); color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; font-weight:700; z-index:10;">
+                                <tr>
+                                    <th style="padding:12px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Fecha</th>
+                                    <th style="padding:12px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Tipo</th>
+                                    <th style="padding:12px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Detalle</th>
+                                    <th style="padding:12px 16px; text-align:right; border-bottom:1px solid var(--border-color)">Valor ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="tabular-data">
+                                ${timeline.length === 0 ? '<tr><td colspan="4" style="padding:32px; text-align:center; color:var(--text-muted)"><i data-lucide="archive" style="width:32px;height:32px;opacity:0.3;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto"></i>Sin movimientos registrados</td></tr>' :
+                timeline.map(t => `
+                                    <tr style="border-bottom:1px solid var(--border-color); ${t.isPago ? 'background:rgba(255,255,255,0.02);' : ''}">
+                                        <td style="padding:12px 16px; font-size:0.85rem">${t.fecha}</td>
+                                        <td style="padding:12px 16px;"><span class="badge" style="background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-muted); font-size:0.6rem; padding:2px 6px">${t.tipo}</span></td>
+                                        <td style="padding:12px 16px; font-size:0.85rem; color:var(--text-muted); ${t.isPago ? 'font-weight:600' : ''}">${t.detalle}</td>
+                                        <td style="padding:12px 16px; text-align:right; font-weight:600; ${t.styleClass}">${t.valor > 0 ? '+' : ''}${Math.abs(t.displayValor || t.valor).toLocaleString()}</td>
+                                    </tr>
+                                `).join('')
+            }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="ob-content-pagos" style="display:none; flex:1; overflow-y:auto; min-height:200px; margin-bottom:16px; border:1px solid var(--border-color); border-radius:var(--border-radius-md);">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead style="position:sticky; top:0; background:var(--bg-surface-hover); color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; font-weight:700; z-index:10;">
+                                <tr>
+                                    <th style="padding:12px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Recibo</th>
+                                    <th style="padding:12px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Período</th>
+                                    <th style="padding:12px 16px; text-align:right; border-bottom:1px solid var(--border-color)">Neto Pagado ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="tabular-data">
+                                ${pagos.length === 0 ? '<tr><td colspan="3" style="padding:32px; text-align:center; color:var(--text-muted)"><i data-lucide="banknote" style="width:32px;height:32px;opacity:0.3;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto"></i>Aún no hay nóminas pagadas</td></tr>' :
+                pagos.map(p => `
+                                    <tr style="border-bottom:1px solid var(--border-color)">
+                                        <td style="padding:12px 16px;"><span class="badge" style="background:var(--bg-app); border:1px solid var(--border-color); color:var(--text-main); font-family:monospace">${p.reciboId || 'OLD'}</span></td>
+                                        <td style="padding:12px 16px; font-size:0.85rem; color:var(--text-muted)">${p.fechaInicio || '?'} al ${p.fechaFin || '?'}</td>
+                                        <td style="padding:12px 16px; text-align:right; font-weight:700; color:var(--color-primary)">${(p.netoAPagar || 0).toLocaleString()}</td>
+                                    </tr>
+                                `).join('')
+            }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="flex-shrink:0">
+                        <button class="btn-premium secondary" style="width:100%; border:1px solid var(--border-color)" onclick="Obreros.exportarPdfHistorial()">
+                            <i data-lucide="file-text"></i> Exportar Historial (PDF)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    verTabHistorial(tab) {
+        document.getElementById('btn-tab-ob-todo').className = `btn-premium ${tab === 'todo' ? 'primary' : 'secondary'} flex-1`;
+        document.getElementById('ob-content-todo').style.display = tab === 'todo' ? 'block' : 'none';
+
+        document.getElementById('btn-tab-ob-pagos').className = `btn-premium ${tab === 'pagos' ? 'primary' : 'secondary'} flex-1`;
+        document.getElementById('ob-content-pagos').style.display = tab === 'pagos' ? 'block' : 'none';
+
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    exportarPdfHistorial() {
+        if (typeof window.jspdf === 'undefined') {
+            return App.toast('jsPDF no está cargado', 'error');
+        }
+
+        const d = Obreros._currentPdfData;
+        if (!d) return App.toast('Error cargando datos', 'error');
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        function formatMoney(value) {
+            return "$" + new Intl.NumberFormat('es-CO').format(Math.abs(value));
+        }
+
+        // Colores
+        const dark = [30, 22, 18];
+        const gray = [120, 120, 120];
+        const accent = [139, 90, 43];
+
+        // Header
+        doc.setFillColor(dark[0], dark[1], dark[2]);
+        doc.rect(0, 0, 210, 35, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18);
+        doc.text('CAFECONTROL', 15, 18);
+        doc.setFontSize(14);
+        doc.text('HISTORIAL DE TRABAJADOR', 15, 26);
+
+        // Info Obrero
+        doc.setTextColor(dark[0], dark[1], dark[2]);
+        doc.setFontSize(12);
+        doc.text(`Nombre: ${d.obrero.nombre}`, 15, 48);
+
+        doc.setFontSize(10);
+        doc.setTextColor(gray[0], gray[1], gray[2]);
+        doc.text(`Documento: ${d.obrero.documento || 'N/A'}`, 15, 55);
+        doc.text(`Teléfono: ${d.obrero.telefono || 'N/A'}`, 15, 60);
+        doc.text(`Ingreso: ${d.obrero.fechaIngreso || 'N/A'}`, 15, 65);
+        doc.text(`Estado: ${d.obrero.estado.toUpperCase()}`, 15, 70);
+        if (d.obrero.fechaRetiro) doc.text(`Retiro: ${d.obrero.fechaRetiro}`, 15, 75);
+
+        // Finanzas Caja (Resumen)
+        const summaryY = d.obrero.fechaRetiro ? 82 : 77;
+        doc.setDrawColor(accent[0], accent[1], accent[2]);
+        doc.setFillColor(250, 245, 240);
+        doc.roundedRect(15, summaryY, 180, 50, 3, 3, 'FD');
+
+        doc.setTextColor(dark[0], dark[1], dark[2]);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text('RESUMEN FINANCIERO', 20, summaryY + 8);
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Total Jornales: ${formatMoney(d.totalJornales)}`, 20, summaryY + 16);
+        doc.text(`Total Comida: -${formatMoney(d.totalComida)}`, 20, summaryY + 23);
+        doc.text(`Total Tienda: -${formatMoney(d.totalTienda)}`, 20, summaryY + 30);
+        doc.text(`Total Pagos: -${formatMoney(d.totalPagado)}`, 20, summaryY + 37);
+
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        if (d.saldoActual >= 0) {
+            doc.setTextColor(30, 130, 30); // Verde oscuro
+        } else {
+            doc.setTextColor(200, 30, 30); // Rojo oscuro
+        }
+        const signSaldo = d.saldoActual < 0 ? '-' : '';
+        doc.text(`Saldo Final: ${signSaldo}${formatMoney(d.saldoActual)}`, 20, summaryY + 45);
+
+        // Tabla AutoTable
+        const tableBody = d.timeline.map(row => {
+            const val = row.displayValor || row.valor;
+            const sign = val > 0 ? '+' : (val < 0 ? '-' : '');
+            return [
+                row.fecha,
+                row.tipo,
+                row.detalle,
+                `${sign}${formatMoney(val)}`
+            ];
+        });
+
+        doc.autoTable({
+            startY: summaryY + 55,
+            head: [['Fecha', 'Tipo', 'Detalle', 'Valor']],
+            body: tableBody,
+            headStyles: { fillColor: dark, textColor: 255 },
+            columnStyles: {
+                3: { halign: 'right' }
+            },
+            theme: 'striped',
+            styles: { fontSize: 9 }
+        });
+
+        // Pie de página
+        let finalY = doc.lastAutoTable.finalY + 15;
+        if (finalY > 280) {
+            doc.addPage();
+            finalY = 20;
+        }
+        doc.setFontSize(8);
+        doc.setTextColor(gray[0], gray[1], gray[2]);
+        doc.setFont("helvetica", "normal");
+        doc.text('Documento generado por CaféControl', 15, finalY);
+        doc.text(`Fecha de generación: ${new Date().toLocaleDateString('en-CA')}`, 15, finalY + 5);
+        doc.text('Sistema PWA Offline', 15, finalY + 10);
+
+        doc.save(`Historial_${d.obrero.nombre.replace(/\\s+/g, '_')}_${new Date().toLocaleDateString('en-CA')}.pdf`);
+    },
+
+    closeModal(e) {
+        if (e && e.target !== e.currentTarget) return;
+        const modal = document.querySelector('.modal-system-overlay');
+        if (modal) modal.remove();
+    }
+};

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="cafe">
+
+<head>
+    <script>
+        window.onerror = function (msg, url, lineNo, columnNo, error) {
+            const div = document.createElement('div');
+            div.style.cssText = 'position:fixed;top:0;left:0;z-index:9999;background:red;color:white;padding:10px;font-size:16px;border:2px solid yellow;width:100%;';
+            div.innerHTML = '<b>ERROR:</b> ' + msg + '<br><code>' + url + ':' + lineNo + ':' + columnNo + '</code><br><pre>' + (error && error.stack ? error.stack : '') + '</pre>';
+            document.body.appendChild(div);
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function (event) {
+            const div = document.createElement('div');
+            div.style.cssText = 'position:fixed;top:0;left:0;z-index:9999;background:purple;color:white;padding:10px;font-size:16px;border:2px solid yellow;width:100%;';
+            div.innerHTML = '<b>UNHANDLED PROMISE:</b> ' + (event.reason ? event.reason.stack || event.reason : 'Unknown reason');
+            document.body.appendChild(div);
+        });
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a120b">
+    <meta name="description"
+        content="Sistema de administración para finca cafetera — obreros, recolección, pagos, producción y reportes.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>CaféControl — Gestión Cafetera</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
+</head>
+
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="login-screen">
+
+        <!-- Cinematic Ken Burns background -->
+        <div class="login-bg" aria-hidden="true"></div>
+
+        <div class="login-container">
+
+            <!-- Live status badge -->
+            <div class="login-badge">
+                <div class="login-badge-dot"></div>
+                <span>Sistema Activo · Temporada 2026</span>
+            </div>
+
+            <div class="login-logo">
+                <div class="coffee-icon">
+                    <i data-lucide="coffee" style="width: 36px; height: 36px; color: #c8956c;"></i>
+                </div>
+                <h1>CaféControl</h1>
+                <p>Gestión de Finca Cafetera</p>
+            </div>
+
+            <form id="login-form" class="login-form">
+                <div class="input-group">
+                    <label for="login-password">Contraseña de acceso</label>
+                    <input type="password" id="login-password" placeholder="Ingrese la contraseña"
+                        autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block"
+                    style="margin-top:0.5rem; padding: 0.85rem 1.25rem; font-size: 0.95rem;">
+                    <span>Ingresar al Sistema</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </button>
+                <p id="login-error" class="login-error hidden">Contraseña incorrecta. Inténtalo de nuevo.</p>
+            </form>
+
+            <p class="login-caption">© 2026 CaféControl — Todos los derechos reservados</p>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="main-app" class="main-app hidden">
+        <!-- SIDEBAR (Desktop) -->
+        <nav id="sidebar" class="sidebar sidebar-glass">
+            <div class="sidebar-header" style="padding: 1.5rem 1.25rem 1rem;">
+                <div class="sidebar-logo">
+                    <div
+                        style="background:var(--color-primary); color:white; border-radius:8px; padding:6px; display:flex; align-items:center; justify-content:center">
+                        <i data-lucide="coffee"></i>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column">
+                    <span class="sidebar-title"
+                        style="color:var(--text-main); line-height:1.2; font-weight:800; background:none; -webkit-text-fill-color:initial">CaféControl</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600">Premium OS</span>
+                </div>
+            </div>
+
+            <div class="nav-list"
+                style="display:flex; flex-direction:column; padding:0.5rem 1rem 1.5rem; flex:1; overflow-y:auto">
+                <div class="nav-section">OPERACIÓN</div>
+                <a href="#dashboard" class="nav-item active" data-view="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#jornales" class="nav-item" data-view="jornales">
+                    <i data-lucide="check-square"></i>
+                    <span>Jornales</span>
+                </a>
+                <a href="#asistencia" class="nav-item" data-view="asistencia">
+                    <i data-lucide="calendar-check-2"></i>
+                    <span>Asistencia</span>
+                </a>
+                <a href="#comida" class="nav-item" data-view="comida">
+                    <i data-lucide="utensils"></i>
+                    <span>Comida</span>
+                </a>
+
+                <div class="nav-section">GESTIÓN</div>
+                <a href="#obreros" class="nav-item" data-view="obreros">
+                    <i data-lucide="users"></i>
+                    <span>Obreros</span>
+                </a>
+                <a href="#lotes" class="nav-item" data-view="lotes">
+                    <i data-lucide="map"></i>
+                    <span>Lotes</span>
+                </a>
+                <a href="#ciclos" class="nav-item" data-view="ciclos">
+                    <i data-lucide="clock"></i>
+                    <span>Ciclos</span>
+                </a>
+
+                <div class="nav-section">PRODUCCIÓN</div>
+                <a href="#transporte" class="nav-item" data-view="transporte">
+                    <i data-lucide="truck"></i>
+                    <span>Transporte</span>
+                </a>
+                <a href="#conversion" class="nav-item" data-view="conversion">
+                    <i data-lucide="factory"></i>
+                    <span>Conversión</span>
+                </a>
+                <a href="#cascota" class="nav-item" data-view="cascota">
+                    <i data-lucide="trash-2"></i>
+                    <span>Cascota</span>
+                </a>
+
+                <div class="nav-section">FINANZAS</div>
+                <a href="#caja" class="nav-item" data-view="caja">
+                    <i data-lucide="shopping-cart"></i>
+                    <span>Caja</span>
+                    <span id="caja-alert-badge" class="nav-badge" style="display:none"></span>
+                </a>
+                <a href="#pagos" class="nav-item" data-view="pagos">
+                    <i data-lucide="dollar-sign"></i>
+                    <span>Pagos</span>
+                </a>
+                <a href="#historial" class="nav-item" data-view="historial">
+                    <i data-lucide="history"></i>
+                    <span>Historial</span>
+                </a>
+
+                <div class="nav-section">ANÁLISIS</div>
+                <a href="#reportes" class="nav-item" data-view="reportes">
+                    <i data-lucide="bar-chart-2"></i>
+                    <span>Reportes</span>
+                </a>
+
+                <div class="nav-section">SISTEMA</div>
+                <a href="#config" class="nav-item" data-view="config">
+                    <i data-lucide="settings"></i>
+                    <span>Configuración</span>
+                </a>
+
+                <!-- Theme Switcher (Desktop) -->
+                <div style="margin-top:auto; padding-top:0.75rem; border-top:1px solid var(--border)">
+                    <div class="nav-section" style="margin-top:0.5rem">APARIENCIA</div>
+                    <div id="theme-switcher-sidebar"></div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- BOTTOM NAV (Mobile) -->
+        <nav id="bottom-nav" class="bottom-nav">
+            <a href="#dashboard" class="bottom-nav-item active" data-view="dashboard">
+                <i data-lucide="layout-dashboard"></i>
+                <span>Inicio</span>
+            </a>
+            <a href="#jornales" class="bottom-nav-item" data-view="jornales">
+                <i data-lucide="check-square"></i>
+                <span>Jornales</span>
+            </a>
+            <a href="#caja" class="bottom-nav-item" data-view="caja">
+                <i data-lucide="shopping-cart"></i>
+                <span>Caja</span>
+                <span id="caja-alert-badge" class="nav-badge" style="display:none"></span>
+            </a>
+            <a href="#pagos" class="bottom-nav-item" data-view="pagos">
+                <i data-lucide="dollar-sign"></i>
+                <span>Pagos</span>
+            </a>
+            <a href="#mas" id="btn-mas" class="bottom-nav-item" data-view="mas">
+                <i data-lucide="menu"></i>
+                <span>Más</span>
+            </a>
+        </nav>
+
+        <!-- MORE MENU (Mobile) -->
+        <div id="more-menu" class="more-menu hidden">
+            <div class="more-menu-overlay"></div>
+            <div class="more-menu-content">
+                <div class="more-menu-header">
+                    <h3>Más opciones</h3>
+                    <button id="close-more" class="btn-icon">&times;</button>
+                </div>
+                <div class="more-menu-grid">
+                    <a href="#obreros" class="more-menu-item" data-view="obreros">
+                        <i data-lucide="users"></i>
+                        <span>Obreros</span>
+                    </a>
+                    <a href="#lotes" class="more-menu-item" data-view="lotes">
+                        <i data-lucide="map"></i>
+                        <span>Lotes</span>
+                    </a>
+                    <a href="#asistencia" class="more-menu-item" data-view="asistencia">
+                        <i data-lucide="calendar-check-2"></i>
+                        <span>Asistencia</span>
+                    </a>
+                    <a href="#comida" class="more-menu-item" data-view="comida">
+                        <i data-lucide="utensils"></i>
+                        <span>Comida</span>
+                    </a>
+                    <a href="#cascota" class="more-menu-item" data-view="cascota">
+                        <i data-lucide="trash-2"></i>
+                        <span>Cascota</span>
+                    </a>
+                    <a href="#transporte" class="more-menu-item" data-view="transporte">
+                        <i data-lucide="truck"></i>
+                        <span>Transporte</span>
+                    </a>
+                    <a href="#conversion" class="more-menu-item" data-view="conversion">
+                        <i data-lucide="factory"></i>
+                        <span>Conversión</span>
+                    </a>
+                    <a href="#ciclos" class="more-menu-item" data-view="ciclos">
+                        <i data-lucide="clock"></i>
+                        <span>Ciclos</span>
+                    </a>
+                    <a href="#historial" class="more-menu-item" data-view="historial">
+                        <i data-lucide="history"></i>
+                        <span>Historial</span>
+                    </a>
+                    <a href="#reportes" class="more-menu-item" data-view="reportes">
+                        <i data-lucide="bar-chart-2"></i>
+                        <span>Reportes</span>
+                    </a>
+                    <a href="#config" class="more-menu-item" data-view="config">
+                        <i data-lucide="settings"></i>
+                        <span>Config</span>
+                    </a>
+                </div>
+
+                <!-- Theme Switcher (Mobile) -->
+                <div style="margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border)">
+                    <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.5rem; padding-left:0.25rem">Apariencia</div>
+                    <div id="theme-switcher-mobile"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <main id="app" class="main-content">
+            <!-- Dynamic content rendered here -->
+        </main>
+    </div>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- SCRIPTS -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/lib/jspdf.umd.min.js"></script>
+    <script src="js/lib/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/obreros.js"></script>
+    <script src="js/lotes.js"></script>
+    <script src="js/jornales.js"></script>
+    <script src="js/asistencia.js"></script>
+    <script src="js/comida.js"></script>
+    <script src="js/caja.js"></script>
+    <script src="js/cascota.js"></script>
+    <script src="js/conversion.js"></script>
+    <script src="js/transporte.js"></script>
+    <script src="js/ciclos.js"></script>
+    <script src="js/historial.js"></script>
+    <script src="js/pdf.js"></script>
+    <script src="js/pagos.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/reportes.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
