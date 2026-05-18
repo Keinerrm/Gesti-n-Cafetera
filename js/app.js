@@ -21,21 +21,15 @@ const App = {
             }
         }
 
-        // Registrar SW
+        // Desregistrar Service Workers antiguos (PWA) para forzar la actualización a la nube
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registrado'))
-                    .catch(err => console.error('Error SW:', err));
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                    console.log('ServiceWorker antiguo eliminado');
+                }
             });
         }
-
-        // Manejo de Instalación PWA
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            App.deferredPrompt = e;
-            App.showInstallBanner();
-        });
 
         // Init DB with error handling for file:// protocol
         try {
@@ -172,38 +166,7 @@ const App = {
     },
 
     showInstallBanner() {
-        // Solo mostramos el banner de instalación si estamos en login screen y hay prompt deferido
-        const alertCont = document.getElementById('toast-container');
-        const alertHtml = `
-            <div class="card-glass toast-install animate-up" style="display:flex; flex-direction:column; gap:16px; justify-content:center; text-align:center; padding:24px; position:relative; overflow:hidden; margin-bottom:12px; pointer-events:auto">
-                <div style="position:absolute; top:-30px; left:-30px; width:100px; height:100px; background:var(--color-primary); border-radius:50%; filter:blur(40px); opacity:0.15; z-index:-1"></div>
-                <div style="display:flex; justify-content:center">
-                    <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center">
-                        <i data-lucide="smartphone" style="color:var(--text-main); width:28px; height:28px"></i>
-                    </div>
-                </div>
-                <div>
-                    <strong style="font-size:1.2rem; display:block; margin-bottom:6px; color:var(--text-main); font-weight:800">CaféControl PWA</strong>
-                    <span style="font-size:0.9rem; color:var(--text-muted); line-height:1.4">Instala la aplicación para acceso rápido, pantalla completa y modo offline.</span>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px">
-                    <button id="btn-instalar-app" class="btn-premium primary" style="width:100%; justify-content:center">Instalar Ahora</button>
-                    <button onclick="this.closest('.toast-install').remove()" class="btn-premium secondary" style="width:100%; justify-content:center; border:1px solid rgba(255,255,255,0.05)">Quizás más tarde</button>
-                </div>
-            </div>
-        `;
-        alertCont.insertAdjacentHTML('beforeend', alertHtml);
-        if (window.lucide) window.lucide.createIcons();
-
-        document.getElementById('btn-instalar-app').addEventListener('click', async (e) => {
-            e.target.parentElement.remove();
-            if (App.deferredPrompt) {
-                App.deferredPrompt.prompt();
-                const { outcome } = await App.deferredPrompt.userChoice;
-                console.log(`Instalacion: ${outcome}`);
-                App.deferredPrompt = null;
-            }
-        });
+        // Obsoleto: PWA desactivada
     },
 
     showApp() {

@@ -561,7 +561,6 @@ const Ciclos = {
 
     closeModal(e) {
         if (e && e.target !== e.currentTarget) return;
-        const modal = document.querySelector('.modal-overlay');
-        if (modal) modal.remove();
+        document.querySelectorAll('.modal-overlay, .modal-system-overlay').forEach(m => m.remove());
     }
 };
