@@ -1,9 +1,15 @@
 -- =============================================
--- Fix RLS: Deshabilitar seguridad y otorgar permisos
--- Ejecutar en SQL Editor de Supabase
+-- CaféControl - FIX RLS DEFINITIVO
+-- Ejecutar en SQL Editor de Supabase DESPUÉS
+-- de haber corrido supabase_schema_correcto.sql
 -- =============================================
 
--- Deshabilitar RLS en todas las tablas
+-- Otorgar acceso al schema public
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT USAGE ON SCHEMA public TO service_role;
+
+-- Deshabilitar RLS en TODAS las tablas
 ALTER TABLE fincas DISABLE ROW LEVEL SECURITY;
 ALTER TABLE config DISABLE ROW LEVEL SECURITY;
 ALTER TABLE obreros DISABLE ROW LEVEL SECURITY;
@@ -18,9 +24,19 @@ ALTER TABLE ventas_caja DISABLE ROW LEVEL SECURITY;
 ALTER TABLE cascota DISABLE ROW LEVEL SECURITY;
 ALTER TABLE conversion DISABLE ROW LEVEL SECURITY;
 ALTER TABLE transportes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE cycle_stats DISABLE ROW LEVEL SECURITY;
 
--- Otorgar permisos completos al rol anónimo (anon) y autenticado
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+-- Permisos completos en tablas, sequences y funciones
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO anon;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO anon;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+-- Asegurar que futuros objetos también tengan permisos
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON TABLES TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO anon, authenticated;
