@@ -6,6 +6,110 @@
 const App = {
     currentView: 'dashboard',
 
+    roleViews: {
+        super_admin: [
+            'dashboard', 'jornales', 'asistencia', 'comida', 'obreros', 'lotes', 
+            'ciclos', 'transporte', 'conversion', 'cascota', 'caja', 'pagos', 
+            'historial', 'reportes', 'config'
+        ],
+        admin: [
+            'dashboard', 'jornales', 'asistencia', 'comida', 'obreros', 'lotes', 
+            'ciclos', 'conversion', 'cascota', 'config'
+        ],
+        tienda: [
+            'dashboard', 'caja'
+        ],
+        transporte: [
+            'dashboard', 'transporte'
+        ],
+        cuenta: [
+            'dashboard', 'pagos', 'historial', 'reportes'
+        ],
+        obrero: [
+            'mi-rendimiento'
+        ]
+    },
+
+    applyRoleAccess(role) {
+        const allowedViews = this.roleViews[role] || this.roleViews['tienda'];
+
+        // Obrero: ocultar sidebar y bottom-nav completamente
+        const isObrero = role === 'obrero';
+        const sidebar = document.getElementById('sidebar');
+        const bottomNav = document.getElementById('bottom-nav');
+        const moreMenu = document.getElementById('more-menu');
+        const mainContent = document.querySelector('.main-content');
+
+        if (isObrero) {
+            if (sidebar) sidebar.style.display = 'none';
+            if (bottomNav) bottomNav.style.display = 'none';
+            if (moreMenu) moreMenu.style.display = 'none';
+            // Expandir el contenido a pantalla completa
+            if (mainContent) mainContent.style.marginLeft = '0';
+            return; // No necesitamos filtrar nav items para obrero
+        }
+
+        // Restaurar navegación para roles no-obrero
+        if (sidebar) sidebar.style.display = '';
+        if (bottomNav) bottomNav.style.display = '';
+        if (moreMenu) moreMenu.style.display = '';
+        if (mainContent) mainContent.style.marginLeft = '';
+
+        // Sidebar items (Desktop)
+        document.querySelectorAll('#sidebar .nav-item[data-view]').forEach(item => {
+            const view = item.dataset.view;
+            const allowed = allowedViews.includes(view);
+            item.classList.toggle('hidden', !allowed);
+            item.style.display = allowed ? '' : 'none';
+        });
+
+        // Sidebar sections mapping
+        const sectionsMapping = {
+            'OPERACIÓN': ['dashboard', 'jornales', 'asistencia', 'comida'],
+            'GESTIÓN': ['obreros', 'lotes', 'ciclos'],
+            'PRODUCCIÓN': ['transporte', 'conversion', 'cascota'],
+            'FINANZAS': ['caja', 'pagos', 'historial'],
+            'ANÁLISIS': ['reportes'],
+            'SISTEMA': ['config']
+        };
+
+        document.querySelectorAll('#sidebar .nav-section').forEach(sectionEl => {
+            const sectionText = sectionEl.textContent.trim();
+            const sectionViews = sectionsMapping[sectionText];
+            if (sectionViews) {
+                const hasVisibleItem = sectionViews.some(v => allowedViews.includes(v));
+                sectionEl.classList.toggle('hidden', !hasVisibleItem);
+                sectionEl.style.display = hasVisibleItem ? '' : 'none';
+            }
+        });
+
+        // Bottom nav (Mobile)
+        const masViews = ['obreros', 'lotes', 'asistencia', 'comida', 'cascota', 'transporte', 'conversion', 'ciclos', 'historial', 'reportes', 'config'];
+        const hasMasViews = masViews.some(v => allowedViews.includes(v));
+        
+        const btnMas = document.getElementById('btn-mas');
+        if (btnMas) {
+            btnMas.classList.toggle('hidden', !hasMasViews);
+            btnMas.style.display = hasMasViews ? '' : 'none';
+        }
+
+        document.querySelectorAll('#bottom-nav .bottom-nav-item[data-view]').forEach(item => {
+            const view = item.dataset.view;
+            if (view === 'mas') return;
+            const allowed = allowedViews.includes(view);
+            item.classList.toggle('hidden', !allowed);
+            item.style.display = allowed ? '' : 'none';
+        });
+
+        // More menu items (Mobile)
+        document.querySelectorAll('#more-menu .more-menu-item[data-view]').forEach(item => {
+            const view = item.dataset.view;
+            const allowed = allowedViews.includes(view);
+            item.classList.toggle('hidden', !allowed);
+            item.style.display = allowed ? '' : 'none';
+        });
+    },
+
     async init() {
         // Request persistent storage to protect against OS cache clearing
         if (navigator.storage && navigator.storage.persist) {
@@ -48,13 +152,21 @@ const App = {
         // Check auth (con soporte a navegadores que bloquean variables locales)
         let isAuth = false;
         try {
-            isAuth = sessionStorage.getItem('cafecontrol_auth');
+            isAuth = sessionStorage.getItem('cafecontrol_auth') === 'true';
         } catch (err) {
             console.warn('Storage bloqueado por política del navegador', err);
             isAuth = false;
         }
 
         if (isAuth) {
+            let user = null;
+            try {
+                user = JSON.parse(sessionStorage.getItem('cafecontrol_user'));
+            } catch (e) {}
+
+            if (user && user.rol) {
+                App.applyRoleAccess(user.rol);
+            }
             App.showApp();
         } else {
             // Analizar si estamos en un navegador hostil (ej. Edge con file://)
@@ -68,40 +180,98 @@ const App = {
             }
         }
 
+        // Toggle password visibility in Login
+        const loginToggleBtn = document.getElementById('toggle-login-password');
+        const loginPassInput = document.getElementById('login-password');
+        if (loginToggleBtn && loginPassInput) {
+            loginToggleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const isPassword = loginPassInput.type === 'password';
+                loginPassInput.type = isPassword ? 'text' : 'password';
+                loginToggleBtn.innerHTML = isPassword 
+                    ? `<i data-lucide="eye-off" style="width: 20px; height: 20px;"></i>` 
+                    : `<i data-lucide="eye" style="width: 20px; height: 20px;"></i>`;
+                if (window.lucide) window.lucide.createIcons();
+            });
+        }
+
         // Login form
         const loginForm = document.getElementById('login-form');
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             e.stopPropagation();
+            
+            const identifier = document.getElementById('login-username').value.trim();
             const pass = document.getElementById('login-password').value;
 
-            let storedPass = '1234';
-            try {
-                if (db.db) {
-                    storedPass = await db.getConfig('password', '1234');
-                }
-            } catch (err) {
-                console.warn('Could not read password from DB, using default');
+            // Trigger spinner animation
+            const btnSubmit = document.getElementById('btn-login-submit');
+            const btnText = document.getElementById('btn-login-text');
+            const btnSpinner = document.getElementById('btn-login-spinner');
+            const btnIcon = document.getElementById('btn-login-icon');
+
+            if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.style.opacity = '0.8';
             }
+            if (btnText) btnText.textContent = 'Autenticando...';
+            if (btnSpinner) btnSpinner.classList.remove('hidden');
+            if (btnIcon) btnIcon.classList.add('hidden');
 
-            if (String(pass) === String(storedPass)) {
-                try {
-                    sessionStorage.setItem('cafecontrol_auth', 'true');
-                } catch (e) {
-                    console.warn('No se pudo guardar la sesión por políticas de navegador.');
+            const restoreBtn = () => {
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.style.opacity = '';
                 }
-                document.getElementById('login-error').classList.add('hidden');
-                App.showApp();
-                const hash = location.hash.replace('#', '') || 'dashboard';
+                if (btnText) btnText.textContent = 'Ingresar al Sistema';
+                if (btnSpinner) btnSpinner.classList.add('hidden');
+                if (btnIcon) btnIcon.classList.remove('hidden');
+            };
 
-                // Forzar explícitamente el hash en la URL para que aparezca /#dashboard
-                if (window.location.hash !== '#' + hash) {
-                    window.location.hash = hash;
+            try {
+                // Consultar usuario en la base de datos
+                const user = await db.getUsuarioByLogin(identifier);
+                if (user) {
+                    // Validar contraseña mediante hash SHA-256
+                    const enteredHash = await db.sha256(pass);
+                    if (enteredHash === user.password_hash) {
+                        try {
+                            sessionStorage.setItem('cafecontrol_auth', 'true');
+                            sessionStorage.setItem('cafecontrol_user', JSON.stringify(user));
+                        } catch (err) {
+                            console.warn('No se pudo guardar la sesión por políticas de navegador.');
+                        }
+                        
+                        document.getElementById('login-error').classList.add('hidden');
+                        App.applyRoleAccess(user.rol);
+                        App.showApp();
+                        
+                        const allowedViews = App.roleViews[user.rol] || ['dashboard'];
+                        // Obrero siempre va a mi-rendimiento
+                        const defaultView = user.rol === 'obrero' ? 'mi-rendimiento' : 'dashboard';
+                        let hash = location.hash.replace('#', '') || defaultView;
+                        if (!allowedViews.includes(hash)) {
+                            hash = defaultView;
+                        }
+
+                        // Forzar explícitamente el hash en la URL
+                        if (window.location.hash !== '#' + hash) {
+                            window.location.hash = hash;
+                        }
+
+                        App.navigate(hash);
+                        restoreBtn();
+                        return false;
+                    }
                 }
-
-                App.navigate(hash);
-            } else {
+                
+                // Mostrar error de credenciales
+                restoreBtn();
                 document.getElementById('login-error').classList.remove('hidden');
+            } catch (err) {
+                console.error("Error durante el inicio de sesión:", err);
+                restoreBtn();
+                App.toast("Error al conectar con la base de datos.", "error");
             }
             return false;
         });
@@ -184,6 +354,22 @@ const App = {
     },
 
     async navigate(view) {
+        // Enforce role routing guard
+        let activeUser = null;
+        try {
+            activeUser = JSON.parse(sessionStorage.getItem('cafecontrol_user'));
+        } catch (e) {}
+
+        const role = activeUser ? activeUser.rol : null;
+        const allowedViews = App.roleViews[role] || ['dashboard'];
+        const defaultView = role === 'obrero' ? 'mi-rendimiento' : 'dashboard';
+
+        if (sessionStorage.getItem('cafecontrol_auth') === 'true' && !allowedViews.includes(view)) {
+            App.toast('Acceso restringido para tu rol.', 'error');
+            location.hash = defaultView;
+            return;
+        }
+
         App.currentView = view;
 
         // Update active states
@@ -211,7 +397,8 @@ const App = {
             historial: Historial,
             pagos: Pagos,
             reportes: Reportes,
-            config: Config
+            config: Config,
+            'mi-rendimiento': MiRendimiento
         };
 
         const module = views[view];
@@ -234,17 +421,28 @@ const App = {
     // Toast notification
     toast(message, type = 'info') {
         const container = document.getElementById('toast-container');
-        const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+        if (!container) return;
+        const icons = { 
+            success: 'check-circle', 
+            error: 'alert-octagon', 
+            info: 'info',
+            warning: 'alert-triangle'
+        };
+        const iconName = icons[type] || 'info';
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<span>${icons[type] || ''}</span><span>${message}</span>`;
+        toast.innerHTML = `<i data-lucide="${iconName}" style="width: 18px; height: 18px; flex-shrink: 0;"></i><span>${message}</span>`;
         container.appendChild(toast);
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
 
         setTimeout(() => {
             toast.style.opacity = '0';
-            toast.style.transform = 'translateX(50px)';
-            toast.style.transition = '0.3s ease';
-            setTimeout(() => toast.remove(), 300);
+            toast.style.transform = 'translateY(-15px) scale(0.95)';
+            toast.style.transition = 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+            setTimeout(() => toast.remove(), 350);
         }, 3000);
     },
 

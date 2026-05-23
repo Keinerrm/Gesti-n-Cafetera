@@ -1,0 +1,20 @@
+node_modules/
+.cursor/
+.gemini/
+.env
+*.log
+
+# VS Code settings
+.vscode/
+
+# Local utility scripts
+run_sql.js
+dns_*.js
+dns_doh.js
+dns_test.js
+header_test.js
+migrate*.js
+scratch_run.js
+
+# Design system documents and assets
+design-system/

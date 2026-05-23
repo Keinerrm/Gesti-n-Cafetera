@@ -34,13 +34,6 @@ const Comida = {
 
                 <div id="cm-tab-content" style="margin-bottom:32px"></div>
 
-                <div class="header-premium" style="margin-bottom:16px">
-                    <div class="header-icon" style="background:var(--bg-surface-hover); color:var(--text-main)"><i data-lucide="history"></i></div>
-                    <div>
-                        <h3 style="margin:0;font-size:1.1rem">Historial de Consumos</h3>
-                    </div>
-                </div>
-
                 <div class="filter-bar card-premium" style="padding:12px; margin-bottom:16px; display:flex; gap:12px; background:var(--bg-surface)">
                     <div class="input-group" style="flex:1; margin:0">
                         <label class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; margin-bottom:4px; display:block">Fecha</label>
@@ -55,21 +48,41 @@ const Comida = {
                     </div>
                 </div>
 
-                <div id="comida-resumen-hist" class="kpi-row" style="margin-bottom:16px"></div>
+                <div id="comida-resumen-hist" class="kpi-row" style="margin-bottom:24px"></div>
+
+                <div class="header-premium" style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
+                    <div style="display:flex; align-items:center; gap:12px">
+                        <div class="header-icon" style="background:var(--bg-surface-hover); color:var(--text-main)"><i data-lucide="history"></i></div>
+                        <div>
+                            <h3 style="margin:0;font-size:1.1rem">Historial de Consumos</h3>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center">
+                        <button class="btn-premium secondary" onclick="Comida.changeFilterDate(-1)" title="Día anterior" style="padding: 8px 12px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; cursor: pointer;">
+                            <i data-lucide="chevron-left" style="width:18px; height:18px"></i>
+                        </button>
+                        <button class="btn-premium secondary" onclick="Comida.changeFilterDate(1)" title="Día siguiente" style="padding: 8px 12px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; cursor: pointer;">
+                            <i data-lucide="chevron-right" style="width:18px; height:18px"></i>
+                        </button>
+                    </div>
+                </div>
 
                 <div class="table-wrapper card-premium" style="padding:0; overflow:hidden">
-                    <table style="width:100%; border-collapse:collapse">
-                        <thead style="background:var(--bg-surface-hover); color:var(--text-muted); text-transform:uppercase; font-size:0.75rem; font-weight:700">
-                            <tr>
-                                <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Fecha</th>
-                                <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Obrero</th>
-                                <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Tipo</th>
-                                <th style="padding:16px; text-align:right; border-bottom:1px solid var(--border-color)">Valor ($)</th>
-                                <th style="padding:16px; text-align:center; border-bottom:1px solid var(--border-color)"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="comida-body" class="tabular-data"></tbody>
-                    </table>
+                    <div id="comida-history-scroll" style="max-height: 380px; overflow-y: auto; scroll-behavior: smooth; position: relative;">
+                        <table style="width:100%; border-collapse:collapse">
+                            <thead style="background:var(--bg-surface-hover); color:var(--text-muted); text-transform:uppercase; font-size:0.75rem; font-weight:700; position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px);">
+                                <tr>
+                                    <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Fecha</th>
+                                    <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Obrero</th>
+                                    <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Lote</th>
+                                    <th style="padding:16px; text-align:left; border-bottom:1px solid var(--border-color)">Tipo</th>
+                                    <th style="padding:16px; text-align:right; border-bottom:1px solid var(--border-color)">Valor ($)</th>
+                                    <th style="padding:16px; text-align:center; border-bottom:1px solid var(--border-color)"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="comida-body" class="tabular-data"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <style>
@@ -114,6 +127,7 @@ const Comida = {
        ======================================== */
     async renderRegistroRapido(container) {
         const obreros = (await db.getByFinca('obreros')).filter(o => o.estado === 'activo');
+        const lotes = await db.getByFinca('lotes');
         const today = new Date().toLocaleDateString('en-CA');
         let precioDesayuno = 3000, precioAlmuerzo = 5000, precioCena = 3000;
         try {
@@ -135,6 +149,14 @@ const Comida = {
                     <div class="input-group" style="margin:0; min-width:200px">
                         <label class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; margin-bottom:4px; display:block">Día Operativo</label>
                         <input type="date" class="input-premium" id="cr-fecha" value="${today}" max="${today}" style="min-height:44px; font-weight:600" onchange="Comida.actualizarContadores()">
+                    </div>
+                    
+                    <div class="input-group" style="margin:0; min-width:200px">
+                        <label class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; margin-bottom:4px; display:block">Lote</label>
+                        <select class="input-premium" id="cr-lote" style="min-height:44px; font-weight:600" onchange="Comida.guardarDraft()">
+                            <option value="">Selecciona Lote...</option>
+                            ${lotes.map(l => `<option value="${l.id}">${l.nombre}</option>`).join('')}
+                        </select>
                     </div>
                     
                     <!-- Quick Actions -->
@@ -328,76 +350,87 @@ const Comida = {
     /* --- Save / Clear --- */
 
     async guardarComidas() {
-        const cicloActivo = await db.getCicloActivo();
-        if (!cicloActivo) {
-            return App.alert({ title: 'Ciclo inactivo', message: 'No hay un ciclo activo en Configuración. Debes activar uno para afectar la contabilidad de la semana.', type: 'warning' });
-        }
-
-        const fecha = document.getElementById('cr-fecha').value;
-        if (!fecha) return App.toast('Selecciona una fecha', 'error');
-
-        const lockedCycle = await Ciclos.isDateLocked(fecha);
-        if (lockedCycle) {
-            return App.alert({
-                title: 'Bloqueo Histórico',
-                message: `La nómina de la semana del ${Ciclos.formatFecha(lockedCycle.fechaInicio)} ya fue liquidada y pagada. No se permiten modificaciones post-cierre para no descuadrar la contabilidad.`,
-                type: 'error'
-            });
-        }
-
         const btnSave = document.getElementById('btn-save-comida-r');
-        if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Guardando...'; if (window.lucide) window.lucide.createIcons(); }
+        try {
+            const cicloActivo = await db.getCicloActivo();
+            if (!cicloActivo) {
+                return App.alert({ title: 'Ciclo inactivo', message: 'No hay un ciclo activo en Configuración. Debes activar uno para afectar la contabilidad de la semana.', type: 'warning' });
+            }
 
-        const precioD = await db.getConfig('precioDesayuno', 3000);
-        const precioA = await db.getConfig('precioAlmuerzo', 5000);
-        const precioC = await db.getConfig('precioCena', 3000);
+            const fecha = document.getElementById('cr-fecha').value;
+            if (!fecha) return App.toast('Selecciona una fecha', 'error');
 
-        let total = 0;
-        let omitidos = 0;
-        const cicloId = cicloActivo.id;
-        const batchAsistencia = [];
+            const loteIdVal = document.getElementById('cr-lote').value;
+            if (!loteIdVal) return App.toast('Debes seleccionar un Lote para asignar los consumos.', 'error');
+            const loteId = parseInt(loteIdVal);
 
-        for (const [obreroIdStr, s] of Object.entries(Comida._state)) {
-            const obreroId = parseInt(obreroIdStr);
-            if (s.d || s.a || s.c) {
-                const duplicado = await db.existeComidaHoy(obreroId, fecha);
-                if (duplicado) {
-                    omitidos++;
-                    continue; // Skip if already eaten today (prevent double billing)
+            const lockedCycle = await Ciclos.isDateLocked(fecha);
+            if (lockedCycle) {
+                return App.alert({
+                    title: 'Bloqueo Histórico',
+                    message: `La nómina de la semana del ${Ciclos.formatFecha(lockedCycle.fechaInicio || lockedCycle.fechainicio)} ya fue liquidada y pagada. No se permiten modificaciones post-cierre para no descuadrar la contabilidad.`,
+                    type: 'error'
+                });
+            }
+
+            if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Guardando...'; if (window.lucide) window.lucide.createIcons(); }
+
+            const precioD = await db.getConfig('precioDesayuno', 3000);
+            const precioA = await db.getConfig('precioAlmuerzo', 5000);
+            const precioC = await db.getConfig('precioCena', 3000);
+
+            let total = 0;
+            let omitidos = 0;
+            const cicloId = cicloActivo.id;
+            const batchAsistencia = [];
+
+            for (const [obreroIdStr, s] of Object.entries(Comida._state)) {
+                const obreroId = parseInt(obreroIdStr);
+                if (s.d || s.a || s.c) {
+                    const duplicado = await db.existeComidaHoy(obreroId, fecha);
+                    if (duplicado) {
+                        omitidos++;
+                        continue; // Skip if already eaten today (prevent double billing)
+                    }
+
+                    if (s.d) { await db.add('comida', { obreroId, fecha, tipo: 'desayuno', valor: precioD, cicloId, loteId }); total++; }
+                    if (s.a) { await db.add('comida', { obreroId, fecha, tipo: 'almuerzo', valor: precioA, cicloId, loteId }); total++; }
+                    if (s.c) { await db.add('comida', { obreroId, fecha, tipo: 'cena', valor: precioC, cicloId, loteId }); total++; }
+
+                    batchAsistencia.push({ obreroId, fecha, kilosTotal: 1 }); // Send minimal payload to mark assist
                 }
+            }
 
-                if (s.d) { await db.add('comida', { obreroId, fecha, tipo: 'desayuno', valor: precioD, cicloId }); total++; }
-                if (s.a) { await db.add('comida', { obreroId, fecha, tipo: 'almuerzo', valor: precioA, cicloId }); total++; }
-                if (s.c) { await db.add('comida', { obreroId, fecha, tipo: 'cena', valor: precioC, cicloId }); total++; }
+            if (typeof Asistencia !== 'undefined' && batchAsistencia.length > 0) {
+                await Asistencia.syncAutoAsistenciaBatch(batchAsistencia);
+            }
 
-                batchAsistencia.push({ obreroId, fecha, kilosTotal: 1 }); // Send minimal payload to mark assist
+            if (total === 0 && omitidos === 0) {
+                return App.toast('No hay comidas marcadas en la matriz táctil.', 'error');
+            }
+
+            if (total > 0) {
+                try { localStorage.removeItem(Comida.DRAFT_KEY); } catch (e) { }
+                Comida.limpiarRapido();
+                Comida.loadHistory();
+            }
+
+            if (omitidos > 0 && total === 0) {
+                App.alert({ title: 'Posible Duplicado', message: 'Todos los trabajadores seleccionados ya tienen un registro de comida (Des/Alm/Cen) para la fecha seleccionada.', type: 'warning' });
+            } else if (omitidos > 0) {
+                App.toast(`Registrado con éxito. Se omitieron algunos porque ya comieron hoy.`, 'success');
+            } else {
+                App.toast(`${total} consumos grabados en la contabilidad.`, 'success');
+            }
+        } catch (error) {
+            console.error("Error al guardar comidas:", error);
+            App.alert({ title: 'Error al Guardar', message: 'Ocurrió un error inesperado al registrar los consumos: ' + error.message, type: 'error' });
+        } finally {
+            if (btnSave) {
+                btnSave.disabled = false;
+                Comida.actualizarContadores();
             }
         }
-
-        if (typeof Asistencia !== 'undefined' && batchAsistencia.length > 0) {
-            await Asistencia.syncAutoAsistenciaBatch(batchAsistencia);
-        }
-
-        if (total === 0 && omitidos === 0) {
-            if (btnSave) { btnSave.disabled = false; Comida.actualizarContadores(); }
-            return App.toast('No hay comidas marcadas en la matriz táctil.', 'error');
-        }
-
-        if (total > 0) {
-            try { localStorage.removeItem(Comida.DRAFT_KEY); } catch (e) { }
-            Comida.limpiarRapido();
-            Comida.loadHistory();
-        }
-
-        if (omitidos > 0 && total === 0) {
-            App.alert({ title: 'Posible Duplicado', message: 'Todos los trabajadores seleccionados ya tienen un registro de comida (Des/Alm/Cen) para la fecha seleccionada.', type: 'warning' });
-        } else if (omitidos > 0) {
-            App.toast(`Registrado con éxito. Se omitieron algunos porque ya comieron hoy.`, 'success');
-        } else {
-            App.toast(`${total} consumos grabados en la contabilidad.`, 'success');
-        }
-
-        if (btnSave) { btnSave.disabled = false; Comida.actualizarContadores(); }
     },
 
     limpiarRapido() {
@@ -412,13 +445,16 @@ const Comida = {
 
         const fechaEl = document.getElementById('cr-fecha');
         if (fechaEl) fechaEl.value = new Date().toLocaleDateString('en-CA');
+        const loteEl = document.getElementById('cr-lote');
+        if (loteEl) loteEl.value = '';
     },
 
     /* --- Draft autosave (localStorage) --- */
 
     guardarDraft() {
         const fecha = document.getElementById('cr-fecha')?.value || '';
-        const draft = { fecha, state: Comida._state };
+        const loteId = document.getElementById('cr-lote')?.value || '';
+        const draft = { fecha, loteId, state: Comida._state };
 
         try { localStorage.setItem(Comida.DRAFT_KEY, JSON.stringify(draft)); } catch (e) { }
 
@@ -451,6 +487,10 @@ const Comida = {
                         const fe = document.getElementById('cr-fecha');
                         if (fe) fe.value = draft.fecha;
                     }
+                    if (draft.loteId) {
+                        const le = document.getElementById('cr-lote');
+                        if (le) le.value = draft.loteId;
+                    }
                     Comida._state = draft.state || {};
                     Object.keys(Comida._state).forEach(id => Comida.renderRowState(id));
                     Comida.actualizarContadores();
@@ -470,6 +510,7 @@ const Comida = {
        ======================================== */
     async renderIndividual(container) {
         const obreros = (await db.getByFinca('obreros')).filter(o => o.estado === 'activo');
+        const lotes = await db.getByFinca('lotes');
         const today = new Date().toLocaleDateString('en-CA');
         const precioDesayuno = await db.getConfig('precioDesayuno', 3000);
         const precioAlmuerzo = await db.getConfig('precioAlmuerzo', 5000);
@@ -487,7 +528,7 @@ const Comida = {
                 </div>
                 
                 <form onsubmit="Comida.save(event)">
-                    <div class="grid-2" style="margin-bottom:24px">
+                    <div class="grid-3" style="margin-bottom:24px">
                         <div class="input-group" style="margin:0">
                             <label class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:700;margin-bottom:8px;display:block">Fecha</label>
                             <input type="date" class="input-premium" id="cm-fecha" value="${today}" max="${today}" required>
@@ -497,6 +538,13 @@ const Comida = {
                             <select class="input-premium" id="cm-obrero" required>
                                 <option value="">Selecciona trabajador...</option>
                                 ${obreros.map(o => `<option value="${o.id}">${o.nombre}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group" style="margin:0">
+                            <label class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:700;margin-bottom:8px;display:block">Lote</label>
+                            <select class="input-premium" id="cm-lote" required>
+                                <option value="">Selecciona lote...</option>
+                                ${lotes.map(l => `<option value="${l.id}">${l.nombre}</option>`).join('')}
                             </select>
                         </div>
                     </div>
@@ -547,65 +595,77 @@ const Comida = {
 
     async save(e) {
         e.preventDefault();
-
-        const cicloActivo = await db.getCicloActivo();
-        if (!cicloActivo) {
-            return App.alert({ title: 'Ciclo inactivo', message: 'Debes tener un ciclo activo configurado.', type: 'warning' });
-        }
-
-        const obreroId = parseInt(document.getElementById('cm-obrero').value);
-        const fecha = document.getElementById('cm-fecha').value;
-
-        const lockedCycle = await Ciclos.isDateLocked(fecha);
-        if (lockedCycle) {
-            return App.alert({ title: 'Semana Cerrada', message: 'No se permiten registros retroactivos a semanas ya pagadas.', type: 'error' });
-        }
-
-        const tipo = document.getElementById('cm-tipo').value;
-        const customVal = document.getElementById('cm-valor-custom').value;
-
-        if (!obreroId) return App.toast('Selecciona un obrero', 'error');
-
         const btnSave = document.getElementById('btn-save-comida-ind');
-        if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Procesando...'; if (window.lucide) window.lucide.createIcons(); }
+        try {
+            const cicloActivo = await db.getCicloActivo();
+            if (!cicloActivo) {
+                return App.alert({ title: 'Ciclo inactivo', message: 'Debes tener un ciclo activo configurado.', type: 'warning' });
+            }
 
-        const duplicado = await db.existeComidaHoy(obreroId, fecha);
-        if (duplicado) {
-            if (btnSave) { btnSave.disabled = false; btnSave.innerHTML = '<i data-lucide="plus-circle"></i> Anexar Consumo'; if (window.lucide) window.lucide.createIcons(); }
-            return App.alert({
-                title: 'Alerta de Duplicidad',
-                message: 'Evitamos guardar porque este trabajador ya registra servicios de alimentación para ese día particular.',
-                type: 'warning'
-            });
+            const obreroId = parseInt(document.getElementById('cm-obrero').value);
+            const fecha = document.getElementById('cm-fecha').value;
+
+            const loteIdVal = document.getElementById('cm-lote').value;
+            if (!loteIdVal) return App.toast('Debes seleccionar un Lote para asignar el consumo.', 'error');
+            const loteId = parseInt(loteIdVal);
+
+            const lockedCycle = await Ciclos.isDateLocked(fecha);
+            if (lockedCycle) {
+                return App.alert({ title: 'Semana Cerrada', message: 'No se permiten registros retroactivos a semanas ya pagadas.', type: 'error' });
+            }
+
+            const tipo = document.getElementById('cm-tipo').value;
+            const customVal = document.getElementById('cm-valor-custom').value;
+
+            if (!obreroId) return App.toast('Selecciona un obrero', 'error');
+
+            if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Procesando...'; if (window.lucide) window.lucide.createIcons(); }
+
+            const duplicado = await db.existeComidaHoy(obreroId, fecha);
+            if (duplicado) {
+                return App.alert({
+                    title: 'Alerta de Duplicidad',
+                    message: 'Evitamos guardar porque este trabajador ya registra servicios de alimentación para ese día particular.',
+                    type: 'warning'
+                });
+            }
+
+            const cicloId = cicloActivo.id;
+
+            if (tipo === 'completa') {
+                let precioD = 3000, precioA = 5000, precioC = 3000;
+                try {
+                    precioD = await db.getConfig('precioDesayuno', 3000);
+                    precioA = await db.getConfig('precioAlmuerzo', 5000);
+                    precioC = await db.getConfig('precioCena', 3000);
+                } catch (e) { }
+
+                await db.add('comida', { obreroId, fecha, tipo: 'desayuno', valor: precioD, cicloId, loteId });
+                await db.add('comida', { obreroId, fecha, tipo: 'almuerzo', valor: precioA, cicloId, loteId });
+                await db.add('comida', { obreroId, fecha, tipo: 'cena', valor: precioC, cicloId, loteId });
+                App.toast('Servicio completo agregado a la cuenta del trabajador', 'success');
+            } else {
+                const valor = customVal ? parseFloat(customVal) : parseFloat(document.getElementById('cm-valor').value);
+                await db.add('comida', { obreroId, fecha, tipo, valor, cicloId, loteId });
+                App.toast(`Cobro de ${tipo} efectuado`, 'success');
+            }
+
+            if (typeof Asistencia !== 'undefined') {
+                await Asistencia.syncAutoAsistencia(obreroId, fecha, 1, false);
+            }
+
+            document.getElementById('cm-valor-custom').value = '';
+            Comida.loadHistory();
+        } catch (error) {
+            console.error("Error al guardar comida individual:", error);
+            App.alert({ title: 'Error al Guardar', message: 'Ocurrió un error inesperado al registrar el consumo: ' + error.message, type: 'error' });
+        } finally {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i data-lucide="plus-circle"></i> Anexar Consumo al Trabajador';
+                if (window.lucide) window.lucide.createIcons();
+            }
         }
-
-        const cicloId = cicloActivo.id;
-
-        if (tipo === 'completa') {
-            let precioD = 3000, precioA = 5000, precioC = 3000;
-            try {
-                precioD = await db.getConfig('precioDesayuno', 3000);
-                precioA = await db.getConfig('precioAlmuerzo', 5000);
-                precioC = await db.getConfig('precioCena', 3000);
-            } catch (e) { }
-
-            await db.add('comida', { obreroId, fecha, tipo: 'desayuno', valor: precioD, cicloId });
-            await db.add('comida', { obreroId, fecha, tipo: 'almuerzo', valor: precioA, cicloId });
-            await db.add('comida', { obreroId, fecha, tipo: 'cena', valor: precioC, cicloId });
-            App.toast('Servicio completo agregado a la cuenta del trabajador', 'success');
-        } else {
-            const valor = customVal ? parseFloat(customVal) : parseFloat(document.getElementById('cm-valor').value);
-            await db.add('comida', { obreroId, fecha, tipo, valor, cicloId });
-            App.toast(`Cobro de ${tipo} efectuado`, 'success');
-        }
-
-        if (typeof Asistencia !== 'undefined') {
-            await Asistencia.syncAutoAsistencia(obreroId, fecha, 1, false);
-        }
-
-        document.getElementById('cm-valor-custom').value = '';
-        Comida.loadHistory();
-        if (btnSave) { btnSave.disabled = false; btnSave.innerHTML = '<i data-lucide="plus-circle"></i> Anexar Consumo al Trabajador'; if (window.lucide) window.lucide.createIcons(); }
     },
 
     /* ========================================
@@ -617,7 +677,9 @@ const Comida = {
 
         let comidas = await db.getByFinca('comida');
         const obreros = (await db.getByFinca('obreros')).filter(o => o.estado !== 'inactivo');
+        const lotes = await db.getByFinca('lotes');
         const obMap = Object.fromEntries(obreros.map(o => [o.id, o.nombre]));
+        const loteMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
 
         if (filterFecha) comidas = comidas.filter(c => c.fecha === filterFecha);
         if (filterObrero) comidas = comidas.filter(c => c.obreroId === parseInt(filterObrero));
@@ -659,11 +721,12 @@ const Comida = {
         const tbody = document.getElementById('comida-body');
         if (tbody) {
             tbody.innerHTML = comidas.length === 0
-                ? '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="ghost" style="width:40px;height:40px;opacity:0.2;margin:0 auto 12px;display:block"></i>Sin reportes contables para este filtro.</td></tr>'
+                ? '<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="ghost" style="width:40px;height:40px;opacity:0.2;margin:0 auto 12px;display:block"></i>Sin reportes contables para este filtro.</td></tr>'
                 : comidas.slice(0, 50).map(c => `
                     <tr style="border-bottom:1px solid var(--border-color)">
                         <td style="padding:12px 16px; font-size:0.85rem">${c.fecha}</td>
                         <td style="padding:12px 16px; font-weight:600">${obMap[c.obreroId] || 'Eliminado'}</td>
+                        <td style="padding:12px 16px; font-size:0.85rem; color:var(--text-muted)">${loteMap[c.loteId] || '—'}</td>
                         <td style="padding:12px 16px; font-size:0.85rem; text-transform:capitalize">
                             ${Comida.tipoNode(c.tipo)} ${c.tipo}
                         </td>
@@ -704,5 +767,14 @@ const Comida = {
                 Comida.loadHistory();
             }
         });
+    },
+
+    changeFilterDate(days) {
+        const input = document.getElementById('cm-filter-fecha');
+        if (!input || !input.value) return;
+        const current = new Date(input.value + 'T00:00:00');
+        current.setDate(current.getDate() + days);
+        input.value = current.toISOString().split('T')[0];
+        Comida.loadHistory();
     }
 };

@@ -25,7 +25,9 @@ const Ciclos = {
     },
 
     formatFecha(fechaStr) {
+        if (!fechaStr || fechaStr === 'undefined') return '—';
         const d = new Date(fechaStr + 'T12:00:00');
+        if (isNaN(d.getTime())) return fechaStr;
         return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
     },
 
@@ -167,9 +169,11 @@ const Ciclos = {
         const ciclos = await db.getByFinca('ciclos');
 
         // Verifica si la fecha cae en un ciclo de esta finca que ya esté cerrado (!activo)
-        const closedCiclo = ciclos.find(c =>
-            c.fincaId === fincaId && !c.activo && dateStr >= c.fechaInicio && dateStr <= c.fechaFin
-        );
+        const closedCiclo = ciclos.find(c => {
+            const fInicio = c.fechaInicio || c.fechainicio;
+            const fFin = c.fechaFin || c.fechafin;
+            return c.fincaId === fincaId && !c.activo && fInicio && fFin && dateStr >= fInicio && dateStr <= fFin;
+        });
         return closedCiclo || false;
     },
 

@@ -35,11 +35,11 @@ const Dashboard = {
         let kilosCicloAnterior = 0, cicloAnterior = null;
 
         if (cicloActivo) {
-            const jCiclo = jornales.filter(j => j.fecha >= cicloActivo.fechaInicio && j.fecha <= cicloActivo.fechaFin);
+            const jCiclo = jornales.filter(j => j.cicloId === cicloActivo.id || (!j.cicloId && j.fecha >= cicloActivo.fechaInicio && j.fecha <= cicloActivo.fechaFin));
             kilosCiclo = jCiclo.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
-            comidaCiclo = comidas.filter(c => c.fecha >= cicloActivo.fechaInicio && c.fecha <= cicloActivo.fechaFin).reduce((s, c) => s + (c.valor || 0), 0);
-            pagadoCiclo = pagos.filter(p => p.fechaPago >= cicloActivo.fechaInicio && p.fechaPago <= cicloActivo.fechaFin).reduce((s, p) => s + (p.netoAPagar || 0), 0);
-            ventasCiclo = ventas.filter(v => v.fecha >= cicloActivo.fechaInicio && v.fecha <= cicloActivo.fechaFin).reduce((s, v) => s + (v.valorTotal || 0), 0);
+            comidaCiclo = comidas.filter(c => c.cicloId === cicloActivo.id || (!c.cicloId && c.fecha >= cicloActivo.fechaInicio && c.fecha <= cicloActivo.fechaFin)).reduce((s, c) => s + (c.valor || 0), 0);
+            pagadoCiclo = pagos.filter(p => p.cicloId === cicloActivo.id || (!p.cicloId && p.fechaPago >= cicloActivo.fechaInicio && p.fechaPago <= cicloActivo.fechaFin)).reduce((s, p) => s + (p.netoAPagar || 0), 0);
+            ventasCiclo = ventas.filter(v => v.cicloId === cicloActivo.id || (!v.cicloId && v.fecha >= cicloActivo.fechaInicio && v.fecha <= cicloActivo.fechaFin)).reduce((s, v) => s + (v.valorTotal || 0), 0);
 
             // Ciclo anterior para comparación
             const allCiclos = (await db.getByFinca('ciclos')).filter(c => c.fincaId === fincaId && !c.activo)
@@ -70,7 +70,7 @@ const Dashboard = {
         lotes.forEach(l => { prodPorLote[l.id] = 0; });
 
         const jornalesCiclo = cicloActivo
-            ? jornales.filter(j => j.fecha >= cicloActivo.fechaInicio && j.fecha <= cicloActivo.fechaFin)
+            ? jornales.filter(j => j.cicloId === cicloActivo.id || (!j.cicloId && j.fecha >= cicloActivo.fechaInicio && j.fecha <= cicloActivo.fechaFin))
             : jornales;
 
         jornalesCiclo.forEach(j => {
@@ -97,6 +97,23 @@ const Dashboard = {
         // Max values for bars
         const maxLote = Math.max(...topLotes.map(l => l.kg), 1);
         const maxRec = Math.max(...topRecolectores.map(r => r.kg), 1);
+
+        // Comida por Lote (Ciclo Activo)
+        const comidaPorLote = {};
+        lotes.forEach(l => { comidaPorLote[l.id] = 0; });
+        const comidasCicloList = cicloActivo
+            ? comidas.filter(c => c.cicloId === cicloActivo.id || (!c.cicloId && c.fecha >= cicloActivo.fechaInicio && c.fecha <= cicloActivo.fechaFin))
+            : comidas;
+        comidasCicloList.forEach(c => {
+            if (c.loteId && comidaPorLote[c.loteId] !== undefined) {
+                comidaPorLote[c.loteId] += c.valor || 0;
+            }
+        });
+        const topComidaLotes = Object.entries(comidaPorLote)
+            .map(([id, valor]) => ({ nombre: ltMap[id] || '?', valor }))
+            .filter(l => l.valor > 0)
+            .sort((a, b) => b.valor - a.valor);
+        const maxComidaLote = Math.max(...topComidaLotes.map(l => l.valor), 1);
 
         // Week & month data
         const weekAgo = new Date();
@@ -241,7 +258,7 @@ const Dashboard = {
                     </div>
                 </div>
 
-                <div class="grid-2" style="gap:16px; margin-bottom:24px">
+                <div class="grid-3" style="gap:16px; margin-bottom:24px">
                     <!-- Top Lotes -->
                     <div class="card-premium" style="padding:0; overflow:hidden">
                         <div style="padding:16px; background:var(--bg-surface-hover); border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:8px">
@@ -294,6 +311,31 @@ const Dashboard = {
                                             </div>
                                         `
         }).join('')}
+                                </div>
+                            `}
+                        </div>
+                    </div>
+
+                    <!-- Comida por Lote -->
+                    <div class="card-premium" style="padding:0; overflow:hidden">
+                        <div style="padding:16px; background:var(--bg-surface-hover); border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:8px">
+                            <i data-lucide="utensils" style="width:18px; color:var(--text-muted)"></i>
+                            <span style="font-weight:700; font-size:0.85rem; text-transform:uppercase">Comida por Lote ${cicloActivo ? '<span class="text-muted" style="text-transform:none;font-weight:normal">(Semana)</span>' : ''}</span>
+                        </div>
+                        <div style="padding:16px">
+                            ${topComidaLotes.length === 0 ? '<div style="padding:40px 0; text-align:center; color:var(--text-muted)"><i data-lucide="ghost" style="width:32px; height:32px; opacity:0.3; margin:0 auto 12px; display:block"></i>Sin deudas registradas</div>' : `
+                                <div style="display:flex; flex-direction:column; gap:16px; margin-top:8px">
+                                    ${topComidaLotes.map((l, i) => `
+                                        <div>
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85rem">
+                                                <span style="font-weight:600; color:var(--text-main)">${i + 1}. ${l.nombre}</span>
+                                                <span class="tabular-data" style="font-weight:700; color:var(--color-danger)">$${l.valor.toLocaleString()}</span>
+                                            </div>
+                                            <div style="height:6px; background:var(--bg-app); border-radius:10px; overflow:hidden; border:1px solid var(--border-color)">
+                                                <div style="height:100%; width:${(l.valor / maxComidaLote) * 100}%; background:var(--color-danger); border-radius:10px"></div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
                                 </div>
                             `}
                         </div>

@@ -150,6 +150,10 @@ const Pagos = {
 
         const obreros = (await db.getByFinca('obreros')).filter(o => o.estado === 'activo');
         const todasVentas = await db.getByFinca('ventasCaja');
+        const lotes = await db.getByFinca('lotes');
+        const ltMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
+        const globalComidaPorLote = {};
+        lotes.forEach(l => { globalComidaPorLote[l.id] = 0; });
 
         let htmlRows = '';
 
@@ -159,6 +163,12 @@ const Pagos = {
 
             const comidas = await db.getComidaByObreroAndRange(o.id, cicloActivo.fechaInicio, cicloActivo.fechaFin);
             const totalComida = comidas.reduce((s, c) => s + (c.valor || 0), 0);
+
+            comidas.forEach(c => {
+                if (c.loteId && globalComidaPorLote[c.loteId] !== undefined) {
+                    globalComidaPorLote[c.loteId] += c.valor || 0;
+                }
+            });
 
             const ventasFiadoPendiente = todasVentas.filter(v => v.obreroId === o.id && v.fiado && !v.pagado);
             const totalTienda = ventasFiadoPendiente.reduce((s, v) => s + (v.valorTotal || 0), 0);
@@ -206,6 +216,31 @@ const Pagos = {
             `;
             if (window.lucide) window.lucide.createIcons();
         } else {
+            const comidaLoteDistribucion = Object.entries(globalComidaPorLote)
+                .map(([id, val]) => ({ nombre: ltMap[id] || '?', val }))
+                .filter(item => item.val > 0)
+                .sort((a, b) => b.val - a.val);
+
+            let htmlComidaPorLote = '';
+            if (comidaLoteDistribucion.length > 0) {
+                htmlComidaPorLote = `
+                    <div class="card-premium mb-2 animate-in" style="margin-bottom:24px; background:linear-gradient(145deg, var(--bg-surface) 0%, rgba(239, 68, 68, 0.02) 100%)!important; border:1px solid rgba(239, 68, 68, 0.2)">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px">
+                            <i data-lucide="utensils-crossed" style="color:var(--color-danger); width:18px; height:18px"></i>
+                            <h4 style="margin:0; font-size:0.9rem; text-transform:uppercase; font-weight:700; color:var(--text-main)">Distribución de Comida por Lote (Gasto/Deuda)</h4>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:16px">
+                            ${comidaLoteDistribucion.map(item => `
+                                <div style="flex:1; min-width:150px; background:var(--bg-app); border:1px solid var(--border-color); padding:10px 14px; border-radius:10px; display:flex; justify-content:space-between; align-items:center">
+                                    <span style="font-weight:600; font-size:0.85rem; color:var(--text-muted)">${item.nombre}</span>
+                                    <span class="tabular-data" style="font-weight:800; font-size:1rem; color:var(--color-danger)">$${item.val.toLocaleString()}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
             resEl.innerHTML = `
                 <!-- Cabecera Totales Globales -->
                 <div class="grid-4 mb-2 animate-in tabular-data" style="margin-bottom:24px; gap:8px">
@@ -226,6 +261,8 @@ const Pagos = {
                         <div style="font-size:1.3rem; font-weight:800; color:var(--text-main)">$${c.totalNeto.toLocaleString()}</div>
                     </div>
                 </div>
+
+                ${htmlComidaPorLote}
 
                 <!-- Tabla de Obreros -->
                 <div class="card-premium animate-in" style="padding:0; overflow:hidden; margin-bottom:24px">
@@ -587,7 +624,7 @@ const Pagos = {
                             <tbody>
                                 ${d.comidas.map(c => `
                                     <tr style="border-bottom:1px solid var(--border-color)">
-                                        <td style="padding:12px 16px;">${c.fecha} <br><span class="text-muted" style="font-size:0.75rem">${c.tipo}</span></td>
+                                        <td style="padding:12px 16px;">${c.fecha} <br><span class="text-muted" style="font-size:0.75rem">${c.tipo} ${c.loteId ? `(${d.ltMap[c.loteId] || 'Lote Eliminado'})` : ''}</span></td>
                                         <td style="padding:12px 16px; text-align:right; color:var(--color-danger)">-$${(c.valor || 0).toLocaleString()}</td>
                                     </tr>
                                 `).join('')}

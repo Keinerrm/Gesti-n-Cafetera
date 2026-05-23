@@ -24,6 +24,8 @@ class CafeDB {
             let newKey = key.toLowerCase();
             // fix typo in SQL
             if (newKey === 'obreroid') newKey = 'obrereid';
+            // map JS 'tipo' to DB 'estado' for attendance
+            if (storeName === 'asistencia' && newKey === 'tipo') newKey = 'estado';
             mapped[newKey] = value;
         }
         return mapped;
@@ -69,6 +71,13 @@ class CafeDB {
                 delete mapped[key];
             }
         }
+
+        // Map DB 'estado' to JS 'tipo' for attendance
+        if (storeName === 'asistencia' && mapped.estado !== undefined) {
+            mapped.tipo = mapped.estado;
+            delete mapped.estado;
+        }
+
         return mapped;
     }
 
@@ -80,6 +89,61 @@ class CafeDB {
         let name = indexName.toLowerCase();
         if (name === 'obreroid') return 'obrereid';
         return name;
+    }
+
+    // --- User Auth & Management helpers ---
+
+    async sha256(password) {
+        const msgUint8 = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+    }
+
+    async getUsuarioByLogin(identifier) {
+        const { data, error } = await this.sb
+            .from('usuarios')
+            .select('*')
+            .or(`username.eq.${identifier},cedula.eq.${identifier},telefono.eq.${identifier}`)
+            .eq('estado', 'activo')
+            .maybeSingle();
+
+        if (error) throw new Error(JSON.stringify(error));
+        return data;
+    }
+
+    async getUsuarios() {
+        const { data, error } = await this.sb
+            .from('usuarios')
+            .select('*')
+            .order('id', { ascending: true });
+
+        if (error) throw new Error(JSON.stringify(error));
+        return data || [];
+    }
+
+    async addUsuario(usuarioData) {
+        const { data, error } = await this.sb
+            .from('usuarios')
+            .insert([usuarioData])
+            .select()
+            .single();
+
+        if (error) throw new Error(JSON.stringify(error));
+        return data;
+    }
+
+    async updateUsuario(id, fields) {
+        const { data, error } = await this.sb
+            .from('usuarios')
+            .update(fields)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw new Error(JSON.stringify(error));
+        return data;
     }
 
     // --- Finca helpers ---
@@ -307,16 +371,28 @@ class CafeDB {
 
     async getJornalesByObreroAndRange(obreroId, fechaInicio, fechaFin) {
         const all = await this.getAllByIndex('jornales', 'obreroId', obreroId);
+        const cicloActivo = await this.getCicloActivo();
+        if (cicloActivo && cicloActivo.fechaInicio === fechaInicio && cicloActivo.fechaFin === fechaFin) {
+            return all.filter(j => j.cicloId === cicloActivo.id || (!j.cicloId && j.fecha >= fechaInicio && j.fecha <= fechaFin));
+        }
         return all.filter(j => j.fecha >= fechaInicio && j.fecha <= fechaFin);
     }
 
     async getComidaByObreroAndRange(obreroId, fechaInicio, fechaFin) {
         const all = await this.getAllByIndex('comida', 'obreroId', obreroId);
+        const cicloActivo = await this.getCicloActivo();
+        if (cicloActivo && cicloActivo.fechaInicio === fechaInicio && cicloActivo.fechaFin === fechaFin) {
+            return all.filter(c => c.cicloId === cicloActivo.id || (!c.cicloId && c.fecha >= fechaInicio && c.fecha <= fechaFin));
+        }
         return all.filter(c => c.fecha >= fechaInicio && c.fecha <= fechaFin);
     }
 
     async getVentasByObreroAndRange(obreroId, fechaInicio, fechaFin) {
         const all = await this.getAllByIndex('ventasCaja', 'obreroId', obreroId);
+        const cicloActivo = await this.getCicloActivo();
+        if (cicloActivo && cicloActivo.fechaInicio === fechaInicio && cicloActivo.fechaFin === fechaFin) {
+            return all.filter(v => v.fiado && (v.cicloId === cicloActivo.id || (!v.cicloId && v.fecha >= fechaInicio && v.fecha <= fechaFin)));
+        }
         return all.filter(v => v.fiado && v.fecha >= fechaInicio && v.fecha <= fechaFin);
     }
 

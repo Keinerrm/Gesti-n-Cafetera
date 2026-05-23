@@ -427,7 +427,7 @@ const Asistencia = {
                 btn.disabled = false;
                 return App.alert({
                     title: '🔒 Semana cerrada',
-                    message: `<div style="margin-bottom:0.75rem"><strong>Semana:</strong> ${lockedCycle.nombre} (${Ciclos.formatFecha(lockedCycle.fechaInicio)} – ${Ciclos.formatFecha(lockedCycle.fechaFin)})</div>La fecha ${dateStr} pertenece a una nómina liquidada.<br>No se pueden modificar registros históricos.`,
+                    message: `<div style="margin-bottom:0.75rem"><strong>Semana:</strong> ${lockedCycle.nombre} (${Ciclos.formatFecha(lockedCycle.fechaInicio || lockedCycle.fechainicio)} – ${Ciclos.formatFecha(lockedCycle.fechaFin || lockedCycle.fechafin)})</div>La fecha ${dateStr} pertenece a una nómina liquidada.<br>No se pueden modificar registros históricos.`,
                     type: 'error'
                 });
             }
@@ -656,7 +656,7 @@ const Asistencia = {
         if (lockedCycle) {
             return App.alert({
                 title: '🔒 Semana cerrada',
-                message: `<div style="margin-bottom:0.75rem"><strong>Semana:</strong> ${lockedCycle.nombre} (${Ciclos.formatFecha(lockedCycle.fechaInicio)} – ${Ciclos.formatFecha(lockedCycle.fechaFin)})</div>La nómina de esta semana ya fue liquidada.<br>No se pueden modificar registros históricos.`,
+                message: `<div style="margin-bottom:0.75rem"><strong>Semana:</strong> ${lockedCycle.nombre} (${Ciclos.formatFecha(lockedCycle.fechaInicio || lockedCycle.fechainicio)} – ${Ciclos.formatFecha(lockedCycle.fechaFin || lockedCycle.fechafin)})</div>La nómina de esta semana ya fue liquidada.<br>No se pueden modificar registros históricos.`,
                 type: 'error'
             });
         }

@@ -17,6 +17,13 @@ const Config = {
 
         const fincas = await db.getByFinca('fincas');
         const fincaActivaId = db.getFincaActiva();
+        const obreros = await db.getByFinca('obreros');
+
+        let activeUser = null;
+        try {
+            activeUser = JSON.parse(sessionStorage.getItem('cafecontrol_user'));
+        } catch (e) {}
+        const isSuperAdmin = activeUser && activeUser.rol === 'super_admin';
 
         const app = document.getElementById('app');
         app.innerHTML = `
@@ -230,6 +237,75 @@ const Config = {
                     </div>
                 </div>
 
+                <!-- Gestión de Usuarios (Exclusivo Super Admin) -->
+                ${isSuperAdmin ? `
+                <div class="card-premium mb-2" style="border: 2px solid var(--color-primary) !important">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; font-weight:700; color:var(--text-main); font-size:1.1rem">
+                        <i data-lucide="users" style="color:var(--color-primary)"></i> Administración de Usuarios
+                    </div>
+                    <p class="text-muted mb-3" style="font-size:0.85rem">Registra nuevos perfiles de acceso, edita roles y activa/desactiva cuentas del sistema.</p>
+                    
+                    <!-- Registro Rápido -->
+                    <form onsubmit="Config.registrarUsuario(event)" style="margin-bottom:20px; padding-bottom:20px; border-bottom:1px dashed var(--border-color)">
+                        <div style="font-weight:600; margin-bottom:10px; font-size:0.9rem">Registrar Nuevo Usuario</div>
+                        
+                        <div class="input-group mb-3" style="margin-bottom: 1.25rem;">
+                            <label style="font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="user-check" style="width: 16px; height: 16px; color: var(--color-primary)"></i> Vincular con Obrero existente
+                            </label>
+                            <select id="usr-vincular-obrero" class="input-premium" style="font-weight: 600;" onchange="Config.onVincularObreroChange(this.value)">
+                                <option value="">Ninguno / Usuario Administrativo (Crear manualmente)</option>
+                                ${obreros.map(o => `<option value="${o.id}" data-nombre="${o.nombre}" data-documento="${o.documento}" data-telefono="${o.telefono || ''}">${o.nombre} (C.C. ${o.documento})</option>`).join('')}
+                            </select>
+                            <small class="text-muted mt-1" style="display:block">Selecciona un obrero de la finca para autocompletar su nombre, cédula y teléfono de forma segura.</small>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="input-group">
+                                <label>Nombre Completo</label>
+                                <input type="text" id="usr-nombre" class="input-premium" required placeholder="Nombre y Apellido">
+                            </div>
+                            <div class="input-group">
+                                <label>Número de Cédula</label>
+                                <input type="text" id="usr-cedula" class="input-premium tabular-data" required placeholder="Cédula">
+                            </div>
+                            <div class="input-group" style="margin-top:0.75rem">
+                                <label>Teléfono</label>
+                                <input type="text" id="usr-telefono" class="input-premium tabular-data" required placeholder="Ej: 3000000000">
+                            </div>
+                            <div class="input-group" style="margin-top:0.75rem">
+                                <label>Nombre de Usuario (Username)</label>
+                                <input type="text" id="usr-username" class="input-premium" required placeholder="Ej: pedro123">
+                            </div>
+                            <div class="input-group" style="margin-top:0.75rem">
+                                <label>Rol del Sistema</label>
+                                <select id="usr-rol" class="input-premium">
+                                    <option value="super_admin">Super Admin</option>
+                                    <option value="admin">Administrador (Finca)</option>
+                                    <option value="tienda">Tienda (Cafetería/Caja)</option>
+                                    <option value="transporte">Transporte (Fletes)</option>
+                                    <option value="cuenta">Contador (Nómina/Pagos)</option>
+                                    <option value="obrero">Obrero (Rendimiento)</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="margin-top:0.75rem">
+                                <label>Contraseña Inicial</label>
+                                <input type="password" id="usr-pass" class="input-premium" required placeholder="Mínimo 4 caracteres">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-premium primary mt-3 w-100" style="justify-content:center">
+                            <i data-lucide="user-plus"></i> Registrar Usuario
+                        </button>
+                    </form>
+
+                    <!-- Lista de Usuarios -->
+                    <div style="font-weight:600; margin-bottom:10px; font-size:0.9rem">Usuarios del Sistema</div>
+                    <div id="cfg-usuarios-list" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px">
+                        <div style="text-align:center; padding:12px; color:var(--text-muted); font-size:0.85rem">Cargando usuarios...</div>
+                    </div>
+                </div>
+                ` : ''}
+
                 <!-- Cerrar sesión -->
                 <div class="card-premium" style="text-align:center; padding:16px">
                     <button class="btn-premium" style="background:transparent; color:var(--color-danger); border:1px solid var(--border-color); width:100%; justify-content:center" onclick="Config.logout()">
@@ -246,6 +322,10 @@ const Config = {
         `;
 
         if (window.lucide) window.lucide.createIcons();
+
+        if (isSuperAdmin) {
+            Config.cargarUsuariosList();
+        }
     },
 
     async changeFinca(idStr) {
@@ -664,7 +744,292 @@ const Config = {
 
     logout() {
         sessionStorage.removeItem('cafecontrol_auth');
+        sessionStorage.removeItem('cafecontrol_user');
         document.getElementById('main-app').classList.add('hidden');
         document.getElementById('login-screen').classList.remove('hidden');
+    },
+
+    async cargarUsuariosList() {
+        const container = document.getElementById('cfg-usuarios-list');
+        if (!container) return;
+
+        try {
+            const usuarios = await db.getUsuarios();
+            
+            if (!document.getElementById('cfg-usuarios-list')) return;
+
+            if (usuarios.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding:12px; color:var(--text-muted); font-size:0.85rem">No hay usuarios registrados</div>`;
+                return;
+            }
+
+            container.innerHTML = usuarios.map(u => {
+                const isActive = u.estado === 'activo';
+                
+                return `
+                    <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:var(--border-radius-sm); padding:10px; display:flex; justify-content:space-between; align-items:center; gap:8px">
+                        <div>
+                            <div style="font-weight:600; font-size:0.85rem; color:var(--text-main)">${u.nombre}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:2px">
+                                <span>@${u.username} · C.C. ${u.cedula} · Tel: ${u.telefono}</span>
+                                <span style="color:var(--border-color)">|</span>
+                                <span style="display:inline-flex; align-items:center; gap:4px; background:var(--bg-card); padding:1px 6px; border-radius:4px; border:1px solid var(--border-color)">
+                                    <i data-lucide="key-round" style="width:10px; height:10px; color:var(--color-warning)"></i>
+                                    <span id="pwd-text-${u.id}" data-pwd="${u.password_plain || '1234'}" style="filter: blur(3px); transition: filter 0.2s ease; font-family: monospace;">••••</span>
+                                    <button onclick="Config.toggleVerPassword(${u.id})" style="background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); display:inline-flex; align-items:center;">
+                                        <i data-lucide="eye" style="width:10px; height:10px;"></i>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px">
+                            <select class="input-premium" style="font-size:0.75rem; padding:4px 8px; width:auto; height:auto;" onchange="Config.cambiarRolUsuario(${u.id}, this.value)">
+                                <option value="super_admin" ${u.rol === 'super_admin' ? 'selected' : ''}>Super Admin</option>
+                                <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                                <option value="tienda" ${u.rol === 'tienda' ? 'selected' : ''}>Tienda</option>
+                                <option value="transporte" ${u.rol === 'transporte' ? 'selected' : ''}>Transporte</option>
+                                <option value="cuenta" ${u.rol === 'cuenta' ? 'selected' : ''}>Contador</option>
+                                <option value="obrero" ${u.rol === 'obrero' ? 'selected' : ''}>Obrero</option>
+                            </select>
+                            
+                            <button class="btn-premium" style="font-size:0.75rem; padding:4px 8px; border:none; height:auto; ${isActive ? 'background:rgba(22, 163, 74, 0.1); color:var(--color-primary)' : 'background:rgba(220, 38, 38, 0.1); color:var(--color-danger)'}" onclick="Config.toggleEstadoUsuario(${u.id}, '${u.estado}')">
+                                ${isActive ? 'Activo' : 'Inactivo'}
+                            </button>
+                            
+                            <button class="btn-premium" style="font-size:0.75rem; padding:4px 8px; border:none; height:auto; background:rgba(202, 138, 4, 0.1); color:var(--color-warning);" onclick="Config.resetearPassword(${u.id}, '${u.nombre}')">
+                                Clave
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (window.lucide) window.lucide.createIcons();
+        } catch (err) {
+            console.error("Error cargando usuarios:", err);
+            container.innerHTML = `<div style="text-align:center; padding:12px; color:var(--color-danger); font-size:0.85rem">Error al cargar usuarios</div>`;
+        }
+    },
+
+    async registrarUsuario(e) {
+        e.preventDefault();
+        
+        const nombre = document.getElementById('usr-nombre').value.trim();
+        const cedula = document.getElementById('usr-cedula').value.trim();
+        const telefono = document.getElementById('usr-telefono').value.trim();
+        const username = document.getElementById('usr-username').value.trim().toLowerCase();
+        const rol = document.getElementById('usr-rol').value;
+        const passwordRaw = document.getElementById('usr-pass').value;
+
+        if (passwordRaw.length < 4) {
+            return App.toast('La contraseña debe tener mínimo 4 caracteres', 'error');
+        }
+
+        try {
+            App.toast('Registrando usuario...', 'info');
+            
+            const password_hash = await db.sha256(passwordRaw);
+            
+            await db.addUsuario({
+                nombre,
+                cedula,
+                telefono,
+                username,
+                rol,
+                password_hash,
+                password_plain: passwordRaw,
+                estado: 'activo'
+            });
+
+            App.toast('Usuario registrado con éxito', 'success');
+            
+            const vincularSelect = document.getElementById('usr-vincular-obrero');
+            if (vincularSelect) {
+                vincularSelect.value = '';
+                Config.onVincularObreroChange('');
+            } else {
+                document.getElementById('usr-nombre').value = '';
+                document.getElementById('usr-cedula').value = '';
+                document.getElementById('usr-telefono').value = '';
+            }
+            document.getElementById('usr-username').value = '';
+            document.getElementById('usr-pass').value = '';
+            
+            await Config.cargarUsuariosList();
+            
+        } catch (err) {
+            console.error("Error registrando usuario:", err);
+            App.toast('Error al registrar: Datos duplicados o inválidos', 'error');
+        }
+    },
+
+    async cambiarRolUsuario(id, nuevoRol) {
+        let activeUser = null;
+        try {
+            activeUser = JSON.parse(sessionStorage.getItem('cafecontrol_user'));
+        } catch (e) {}
+
+        if (activeUser && activeUser.id === id && nuevoRol !== 'super_admin') {
+            App.toast('No puedes degradar tu propio rol de super_admin', 'error');
+            await Config.cargarUsuariosList();
+            return;
+        }
+
+        try {
+            App.toast('Actualizando rol...', 'info');
+            await db.updateUsuario(id, { rol: nuevoRol });
+            App.toast('Rol actualizado con éxito', 'success');
+            
+            // Si nos editamos a nosotros mismos, actualizar la sesión
+            if (activeUser && activeUser.id === id) {
+                activeUser.rol = nuevoRol;
+                sessionStorage.setItem('cafecontrol_user', JSON.stringify(activeUser));
+                App.applyRoleAccess(nuevoRol);
+            }
+            
+            await Config.cargarUsuariosList();
+        } catch (err) {
+            console.error("Error cambiando rol:", err);
+            App.toast('Error al cambiar rol', 'error');
+        }
+    },
+
+    async toggleEstadoUsuario(id, estadoActual) {
+        let activeUser = null;
+        try {
+            activeUser = JSON.parse(sessionStorage.getItem('cafecontrol_user'));
+        } catch (e) {}
+
+        if (activeUser && activeUser.id === id) {
+            return App.toast('No puedes desactivar tu propia cuenta', 'error');
+        }
+
+        const nuevoEstado = estadoActual === 'activo' ? 'desactivado' : 'activo';
+        
+        App.confirm({
+            title: `¿${nuevoEstado === 'activo' ? 'Activar' : 'Desactivar'} usuario?`,
+            message: `El usuario no podrá ingresar al sistema si está inactivo.`,
+            confirmText: nuevoEstado === 'activo' ? 'Activar' : 'Desactivar',
+            icon: '👤',
+            onConfirm: async () => {
+                try {
+                    App.toast('Actualizando estado...', 'info');
+                    await db.updateUsuario(id, { estado: nuevoEstado });
+                    App.toast(`Usuario ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'}`, 'success');
+                    await Config.cargarUsuariosList();
+                } catch (err) {
+                    console.error("Error actualizando estado:", err);
+                    App.toast('Error al cambiar el estado del usuario', 'error');
+                }
+            }
+        });
+    },
+
+    async resetearPassword(id, nombre) {
+        const nuevaClave = prompt(`Ingresa la nueva contraseña para ${nombre} (mínimo 4 caracteres):`);
+        if (nuevaClave === null) return;
+        
+        const claveTrim = nuevaClave.trim();
+        if (claveTrim.length < 4) {
+            return App.toast('La contraseña debe tener mínimo 4 caracteres', 'error');
+        }
+
+        try {
+            App.toast('Restableciendo contraseña...', 'info');
+            const password_hash = await db.sha256(claveTrim);
+            await db.updateUsuario(id, { password_hash, password_plain: claveTrim });
+            App.toast(`Contraseña de ${nombre} restablecida con éxito`, 'success');
+            await Config.cargarUsuariosList();
+        } catch (err) {
+            console.error("Error al restablecer contraseña:", err);
+            App.toast('Error al restablecer la contraseña', 'error');
+        }
+    },
+
+    toggleVerPassword(id) {
+        const textEl = document.getElementById(`pwd-text-${id}`);
+        const btnEl = textEl?.nextElementSibling;
+        if (!textEl || !btnEl) return;
+        const isBlurred = textEl.style.filter !== 'none';
+        if (isBlurred) {
+            textEl.style.filter = 'none';
+            textEl.textContent = textEl.getAttribute('data-pwd');
+            btnEl.innerHTML = `<i data-lucide="eye-off" style="width:10px; height:10px;"></i>`;
+        } else {
+            textEl.style.filter = 'blur(3px)';
+            textEl.textContent = '••••';
+            btnEl.innerHTML = `<i data-lucide="eye" style="width:10px; height:10px;"></i>`;
+        }
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    onVincularObreroChange(obreroId) {
+        const nombreInput = document.getElementById('usr-nombre');
+        const cedulaInput = document.getElementById('usr-cedula');
+        const telefonoInput = document.getElementById('usr-telefono');
+        const rolSelect = document.getElementById('usr-rol');
+
+        if (!nombreInput || !cedulaInput || !telefonoInput) return;
+
+        if (!obreroId) {
+            // Restore manual inputs
+            nombreInput.value = '';
+            nombreInput.readOnly = false;
+            nombreInput.disabled = false;
+            nombreInput.style.background = '';
+            nombreInput.style.opacity = '';
+            nombreInput.style.cursor = '';
+
+            cedulaInput.value = '';
+            cedulaInput.readOnly = false;
+            cedulaInput.disabled = false;
+            cedulaInput.style.background = '';
+            cedulaInput.style.opacity = '';
+            cedulaInput.style.cursor = '';
+
+            telefonoInput.value = '';
+            telefonoInput.readOnly = false;
+            telefonoInput.disabled = false;
+            telefonoInput.style.background = '';
+            telefonoInput.style.opacity = '';
+            telefonoInput.style.cursor = '';
+
+            if (rolSelect) rolSelect.value = 'super_admin';
+        } else {
+            // Find selected option
+            const selectEl = document.getElementById('usr-vincular-obrero');
+            const selectedOpt = selectEl.options[selectEl.selectedIndex];
+            if (selectedOpt) {
+                const nombre = selectedOpt.getAttribute('data-nombre') || '';
+                const documento = selectedOpt.getAttribute('data-documento') || '';
+                const telefono = selectedOpt.getAttribute('data-telefono') || '';
+
+                nombreInput.value = nombre;
+                nombreInput.readOnly = true;
+                nombreInput.disabled = true;
+                nombreInput.style.background = 'var(--bg-surface-hover)';
+                nombreInput.style.opacity = '0.7';
+                nombreInput.style.cursor = 'not-allowed';
+
+                cedulaInput.value = documento;
+                cedulaInput.readOnly = true;
+                cedulaInput.disabled = true;
+                cedulaInput.style.background = 'var(--bg-surface-hover)';
+                cedulaInput.style.opacity = '0.7';
+                cedulaInput.style.cursor = 'not-allowed';
+
+                telefonoInput.value = telefono;
+                telefonoInput.readOnly = true;
+                telefonoInput.disabled = true;
+                telefonoInput.style.background = 'var(--bg-surface-hover)';
+                telefonoInput.style.opacity = '0.7';
+                telefonoInput.style.cursor = 'not-allowed';
+
+                // Automatically change system role to "obrero"
+                if (rolSelect) {
+                    rolSelect.value = 'obrero';
+                }
+            }
+        }
     }
 };

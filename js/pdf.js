@@ -23,7 +23,7 @@ const PDF = {
             const ciclo = await db.get('ciclos', pago.cicloId);
             if (ciclo) {
                 cicloNombre = ciclo.nombre;
-                periodoStr = `${Ciclos.formatFecha(ciclo.fechaInicio)} → ${Ciclos.formatFecha(ciclo.fechaFin)}`;
+                periodoStr = `${Ciclos.formatFecha(ciclo.fechaInicio || ciclo.fechainicio)} → ${Ciclos.formatFecha(ciclo.fechaFin || ciclo.fechafin)}`;
             }
         }
         if (!cicloNombre) {
@@ -67,7 +67,7 @@ const PDF = {
         const fincaId = ciclo.fincaId || db.getFincaActiva();
         const finca = await db.get('fincas', fincaId);
         const fincaNombre = finca ? finca.nombre : 'Finca';
-        const periodoStr = `${Ciclos.formatFecha(ciclo.fechaInicio)} → ${Ciclos.formatFecha(ciclo.fechaFin)}`;
+        const periodoStr = `${Ciclos.formatFecha(ciclo.fechaInicio || ciclo.fechainicio)} → ${Ciclos.formatFecha(ciclo.fechaFin || ciclo.fechafin)}`;
 
         // Get all pagos for this ciclo
         const todosPagos = await db.getByFinca('pagos');
@@ -89,7 +89,7 @@ const PDF = {
 
             const jornales = (await db.getByFinca('jornales')).filter(j =>
                 j.obreroId === pago.obreroId &&
-                j.fecha >= ciclo.fechaInicio && j.fecha <= ciclo.fechaFin
+                j.fecha >= (ciclo.fechaInicio || ciclo.fechainicio) && j.fecha <= (ciclo.fechaFin || ciclo.fechafin)
             );
 
             const data = {
@@ -109,7 +109,7 @@ const PDF = {
             PDF._renderPagina(doc, data);
         }
 
-        doc.save(`Recibos_${ciclo.nombre.replace(/\s+/g, '_')}_${ciclo.fechaInicio}.pdf`);
+        doc.save(`Recibos_${ciclo.nombre.replace(/\s+/g, '_')}_${ciclo.fechaInicio || ciclo.fechainicio}.pdf`);
         App.toast(`📄 ${pagosCiclo.length} recibos generados`, 'success');
     },
 

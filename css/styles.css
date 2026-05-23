@@ -1363,41 +1363,102 @@ tr:hover td {
 /* --- Toast --- */
 .toast-container {
     position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 1000;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 10px;
+    align-items: center;
+    pointer-events: none;
+    width: max-content;
+    max-width: 92%;
 }
 
 .toast {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.75rem 1rem;
-    font-size: 0.85rem;
+    background: rgba(30, 20, 15, 0.75); /* Dark warm coffee tint */
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 40px; /* Pill design */
+    padding: 10px 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    animation: slideInRight 0.3s ease;
-    box-shadow:
-        var(--shadow-lg),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    min-width: 220px;
-    max-width: 360px;
+    gap: 10px;
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    animation: toastSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+    transition: all 0.3s ease;
+    min-width: 260px;
+    max-width: 480px;
+    justify-content: center;
+}
+
+@keyframes toastSlideDown {
+    0% { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .toast.success {
-    border-left: 3px solid var(--green);
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+    box-shadow: 
+        0 10px 30px rgba(16, 185, 129, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .toast.error {
-    border-left: 3px solid var(--red);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    box-shadow: 
+        0 10px 30px rgba(239, 68, 68, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .toast.info {
-    border-left: 3px solid var(--blue);
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #3b82f6;
+    box-shadow: 
+        0 10px 30px rgba(59, 130, 246, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.toast.warning {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+    box-shadow: 
+        0 10px 30px rgba(245, 158, 11, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* --- Historial Scrollbar --- */
+#comida-history-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+#comida-history-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+}
+
+#comida-history-scroll::-webkit-scrollbar-thumb {
+    background: rgba(200, 149, 108, 0.25); /* Accent warm coffee color */
+    border-radius: 8px;
+}
+
+#comida-history-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(200, 149, 108, 0.45);
 }
 
 /* --- Calendar / Attendance Grid --- */
@@ -1780,6 +1841,17 @@ tr:hover td {
     animation: fadeInUp 0.35s ease;
 }
 
+/* Spinner and Loader animations */
+.spin {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 /* ============================================
    RESPONSIVE
    ============================================ */
@@ -1834,8 +1906,11 @@ tr:hover td {
     }
 
     .toast-container {
-        left: 1rem;
-        right: 1rem;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: 92%;
     }
 
     .toast {
