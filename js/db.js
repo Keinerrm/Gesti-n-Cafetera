@@ -62,7 +62,17 @@ class CafeDB {
             'totalneto': 'totalNeto',
             'metodopago': 'metodoPago',
             'kiloscereza': 'kilosCereza',
-            'kilospergamino': 'kilosPergamino'
+            'kilospergamino': 'kilosPergamino',
+            'tipopago': 'tipoPago',
+            'tarifadia': 'tarifaDia',
+            'totaldia': 'totalDia',
+            'kilosam': 'kilosAM',
+            'kilospm': 'kilosPM',
+            'desctransportevalor': 'descTransporteValor',
+            'netoapagar': 'netoAPagar',
+            'valortotal': 'valorTotal',
+            'preciokilo': 'precioKilo',
+            'valorjornal': 'valorJornal'
         };
 
         for (const [key, value] of Object.entries(data)) {
@@ -371,29 +381,29 @@ class CafeDB {
 
     async getJornalesByObreroAndRange(obreroId, fechaInicio, fechaFin) {
         const all = await this.getAllByIndex('jornales', 'obreroId', obreroId);
-        const cicloActivo = await this.getCicloActivo();
-        if (cicloActivo && cicloActivo.fechaInicio === fechaInicio && cicloActivo.fechaFin === fechaFin) {
-            return all.filter(j => j.cicloId === cicloActivo.id || (!j.cicloId && j.fecha >= fechaInicio && j.fecha <= fechaFin));
-        }
         return all.filter(j => j.fecha >= fechaInicio && j.fecha <= fechaFin);
     }
 
     async getComidaByObreroAndRange(obreroId, fechaInicio, fechaFin) {
         const all = await this.getAllByIndex('comida', 'obreroId', obreroId);
-        const cicloActivo = await this.getCicloActivo();
-        if (cicloActivo && cicloActivo.fechaInicio === fechaInicio && cicloActivo.fechaFin === fechaFin) {
-            return all.filter(c => c.cicloId === cicloActivo.id || (!c.cicloId && c.fecha >= fechaInicio && c.fecha <= fechaFin));
-        }
         return all.filter(c => c.fecha >= fechaInicio && c.fecha <= fechaFin);
     }
 
     async getVentasByObreroAndRange(obreroId, fechaInicio, fechaFin) {
         const all = await this.getAllByIndex('ventasCaja', 'obreroId', obreroId);
-        const cicloActivo = await this.getCicloActivo();
-        if (cicloActivo && cicloActivo.fechaInicio === fechaInicio && cicloActivo.fechaFin === fechaFin) {
-            return all.filter(v => v.fiado && (v.cicloId === cicloActivo.id || (!v.cicloId && v.fecha >= fechaInicio && v.fecha <= fechaFin)));
-        }
         return all.filter(v => v.fiado && v.fecha >= fechaInicio && v.fecha <= fechaFin);
+    }
+
+    // Returns the ciclo that covers a specific date range (active or not)
+    async getCicloByDateRange(fechaInicio, fechaFin) {
+        const ciclos = await this.getAll('ciclos');
+        const fincaId = this.getFincaActiva();
+        // Try exact match first
+        const exact = ciclos.find(c => c.fincaId === fincaId && c.fechaInicio === fechaInicio && c.fechaFin === fechaFin);
+        if (exact) return exact;
+        // Try overlapping
+        const overlapping = ciclos.filter(c => c.fincaId === fincaId && c.fechaInicio <= fechaFin && c.fechaFin >= fechaInicio);
+        return overlapping.length > 0 ? overlapping[0] : null;
     }
 
     async getTotalKilosByLote(loteId) {

@@ -139,6 +139,10 @@ const Pagos = {
         const cicloActivo = await db.getCicloActivo();
         if (!cicloActivo) return;
 
+        // Derive precioKilo from config (ciclos table doesn't store it directly)
+        let precioKilo = await db.getConfig('tarifaKilo', 500);
+        if (!precioKilo || precioKilo <= 0) precioKilo = 500;
+
         // Limpieza de estados
         this._nominaGlobal = {
             resumen: [],
@@ -159,19 +163,31 @@ const Pagos = {
 
         for (const o of obreros) {
             const jornales = await db.getJornalesByObreroAndRange(o.id, cicloActivo.fechaInicio, cicloActivo.fechaFin);
-            const totalGanado = jornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+            const totalGanado = jornales.reduce((s, j) => {
+                const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+                let valorJornal = parseFloat(j.totalDia) || 0;
+                if (valorJornal <= 0) {
+                    if (j.tipoPago === 'dia') {
+                        valorJornal = parseFloat(j.tarifaDia) || 40000;
+                    } else {
+                        const tarifaK = parseFloat(precioKilo) || 1000;
+                        valorJornal = kilosJornal * tarifaK;
+                    }
+                }
+                return s + valorJornal;
+            }, 0);
 
             const comidas = await db.getComidaByObreroAndRange(o.id, cicloActivo.fechaInicio, cicloActivo.fechaFin);
-            const totalComida = comidas.reduce((s, c) => s + (c.valor || 0), 0);
+            const totalComida = comidas.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0);
 
             comidas.forEach(c => {
                 if (c.loteId && globalComidaPorLote[c.loteId] !== undefined) {
-                    globalComidaPorLote[c.loteId] += c.valor || 0;
+                    globalComidaPorLote[c.loteId] += parseFloat(c.valor) || 0;
                 }
             });
 
             const ventasFiadoPendiente = todasVentas.filter(v => v.obreroId === o.id && v.fiado && !v.pagado);
-            const totalTienda = ventasFiadoPendiente.reduce((s, v) => s + (v.valorTotal || 0), 0);
+            const totalTienda = ventasFiadoPendiente.reduce((s, v) => s + (parseFloat(v.valorTotal) || 0), 0);
 
             const totalNeto = totalGanado - totalComida - totalTienda;
 
@@ -495,11 +511,6 @@ const Pagos = {
     async calcular(e) {
         e.preventDefault();
 
-        const cicloActivo = await db.getCicloActivo();
-        if (!cicloActivo) {
-            return App.alert({ title: 'Ciclo inactivo', message: 'No hay un ciclo activo. Debes abrir un ciclo para gestionar pagos.', type: 'warning' });
-        }
-
         const obreroId = parseInt(document.getElementById('pg-obrero').value);
         const fechaInicio = document.getElementById('pg-inicio').value;
         const fechaFin = document.getElementById('pg-fin').value;
@@ -526,11 +537,35 @@ const Pagos = {
         const todasVentas = await db.getAllByIndex('ventasCaja', 'obreroId', obreroId);
         const ventasFiadoPendiente = todasVentas.filter(v => v.fiado && !v.pagado);
 
-        const totalGanado = jornales.reduce((s, j) => s + (j.totalDia || 0), 0);
-        const totalKilos = jornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
-        const descComida = comidas.reduce((s, c) => s + (c.valor || 0), 0);
-        const descCajaPeriodo = ventas.reduce((s, v) => s + (v.valorTotal || 0), 0);
-        const deudaTotalFiado = ventasFiadoPendiente.reduce((s, v) => s + (v.valorTotal || 0), 0);
+        // Determine the ciclo that actually covers this date range (may be historical/inactive)
+        const cicloDelPeriodo = await db.getCicloByDateRange(fechaInicio, fechaFin);
+        const cicloActivo = await db.getCicloActivo();
+        const cicloRef = cicloDelPeriodo || cicloActivo;
+        const cicloIdParaPago = cicloRef ? cicloRef.id : 1;
+
+        // Derive precioKilo: first from config, then fallback
+        let precioKilo = await db.getConfig('tarifaKilo', 500);
+        if (!precioKilo || precioKilo <= 0) precioKilo = 500;
+
+        const totalGanado = jornales.reduce((s, j) => {
+            const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+            // Use stored totalDia first (most accurate = totaldia en DB), then recalculate
+            let valorJornal = parseFloat(j.totalDia) || 0;
+            if (valorJornal <= 0) {
+                const tarifaGuardada = parseFloat(j.tarifaDia) || 0;
+                if (j.tipoPago === 'dia') {
+                    valorJornal = tarifaGuardada || 40000;
+                } else {
+                    // tarifaDia in kilo-type jornals stores the rate per kilo
+                    valorJornal = kilosJornal * (tarifaGuardada || parseFloat(precioKilo) || 500);
+                }
+            }
+            return s + valorJornal;
+        }, 0);
+        const totalKilos = jornales.reduce((s, j) => s + (parseFloat(j.kilosRecolectados) || 0), 0);
+        const descComida = comidas.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0);
+        const descCajaPeriodo = ventas.reduce((s, v) => s + (parseFloat(v.valorTotal) || 0), 0);
+        const deudaTotalFiado = ventasFiadoPendiente.reduce((s, v) => s + (parseFloat(v.valorTotal) || 0), 0);
 
         const lotes = await db.getByFinca('lotes');
         const ltMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
@@ -543,7 +578,8 @@ const Pagos = {
             totalGanado, totalKilos, descComida, descCajaPeriodo,
             deudaTotalFiado, ltMap, prMap,
             pagosSolapados,
-            cicloId: cicloActivo.id,
+            cicloId: cicloIdParaPago,
+            precioKilo,
             // wizard properties
             wizardStep: 1,
             descComidaActive: descComida > 0,
@@ -626,16 +662,28 @@ const Pagos = {
                             </thead>
                             <tbody>
                                 ${d.jornales.length === 0 ? '<tr><td colspan="3" style="padding:24px; text-align:center; color:var(--text-muted)">Sin jornales en este período</td></tr>' :
-                                d.jornales.map(j => `
-                                    <tr style="border-bottom:1px solid var(--border-color)">
-                                        <td style="padding:10px 16px;">
-                                            <div style="font-weight:600">${j.fecha}</div>
-                                            <div class="text-muted" style="font-size:0.75rem">${d.ltMap[j.loteId] || 'Lote Eliminado'}</div>
-                                        </td>
-                                        <td style="padding:10px 16px; text-align:right"><strong>${(j.kilosRecolectados || 0).toLocaleString()}</strong> kg</td>
-                                        <td style="padding:10px 16px; text-align:right; font-weight:600; color:var(--color-primary)">$${(j.totalDia || 0).toLocaleString()}</td>
-                                    </tr>
-                                `).join('')}
+                                d.jornales.map(j => {
+                                    const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+                                    let valorJornal = parseFloat(j.totalDia) || 0;
+                                    if (valorJornal <= 0) {
+                                        if (j.tipoPago === 'dia') {
+                                            valorJornal = parseFloat(j.tarifaDia) || 40000;
+                                        } else {
+                                            const tarifaK = parseFloat(d.precioKilo) || 1000;
+                                            valorJornal = kilosJornal * tarifaK;
+                                        }
+                                    }
+                                    return `
+                                        <tr style="border-bottom:1px solid var(--border-color)">
+                                            <td style="padding:10px 16px;">
+                                                <div style="font-weight:600">${j.fecha}</div>
+                                                <div class="text-muted" style="font-size:0.75rem">${d.ltMap[j.loteId] || 'Lote Eliminado'}</div>
+                                            </td>
+                                            <td style="padding:10px 16px; text-align:right"><strong>${kilosJornal.toLocaleString()}</strong> kg</td>
+                                            <td style="padding:10px 16px; text-align:right; font-weight:600; color:var(--color-primary)">$${valorJornal.toLocaleString()}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>

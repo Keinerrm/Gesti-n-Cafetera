@@ -262,9 +262,33 @@ const Obreros = {
         const obrero = await db.get('obreros', id);
         if (!obrero) return;
 
+        const cicloActivo = await db.getCicloActivo();
+        let precioKilo = 0;
+        if (cicloActivo) {
+            precioKilo = cicloActivo.precioKilo || cicloActivo.precio_kilo || cicloActivo.tarifaKilo;
+        }
+        if (!precioKilo) {
+            precioKilo = await db.getConfig('tarifaKilo', 500);
+        }
+        if (!precioKilo || precioKilo <= 0) {
+            precioKilo = 1000;
+        }
+
         const jornales = await db.getAllByIndex('jornales', 'obreroId', id);
-        const totalKilos = jornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
-        const totalGanado = jornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+        const totalKilos = jornales.reduce((s, j) => s + (parseFloat(j.kilosRecolectados) || 0), 0);
+        const totalGanado = jornales.reduce((s, j) => {
+            const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+            let valorJornal = parseFloat(j.totalDia) || 0;
+            if (valorJornal <= 0) {
+                if (j.tipoPago === 'dia') {
+                    valorJornal = parseFloat(j.tarifaDia) || 40000;
+                } else {
+                    const tarifaK = parseFloat(precioKilo) || 1000;
+                    valorJornal = kilosJornal * tarifaK;
+                }
+            }
+            return s + valorJornal;
+        }, 0);
         const diasTrabajados = jornales.length;
 
         const comidas = await db.getAllByIndex('comida', 'obreroId', id);
@@ -339,6 +363,18 @@ const Obreros = {
         const obrero = await db.get('obreros', id);
         if (!obrero) return;
 
+        const cicloActivo = await db.getCicloActivo();
+        let precioKilo = 0;
+        if (cicloActivo) {
+            precioKilo = cicloActivo.precioKilo || cicloActivo.precio_kilo || cicloActivo.tarifaKilo;
+        }
+        if (!precioKilo) {
+            precioKilo = await db.getConfig('tarifaKilo', 500);
+        }
+        if (!precioKilo || precioKilo <= 0) {
+            precioKilo = 1000;
+        }
+
         // Fetch all related records
         const jornales = await db.getAllByIndex('jornales', 'obreroId', id);
         const comidas = await db.getAllByIndex('comida', 'obreroId', id);
@@ -364,7 +400,17 @@ const Obreros = {
         let timeline = [];
 
         jornales.forEach(j => {
-            timeline.push({ fecha: j.fecha, tipo: 'Jornal', detalle: `${ltMap[j.loteId] || 'Lote'} (${j.kilosRecolectados}kg)`, valor: j.totalDia, styleClass: 'color:var(--color-primary)', isPago: false, obj: j });
+            const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+            let valorJornal = parseFloat(j.totalDia) || 0;
+            if (valorJornal <= 0) {
+                if (j.tipoPago === 'dia') {
+                    valorJornal = parseFloat(j.tarifaDia) || 40000;
+                } else {
+                    const tarifaK = parseFloat(precioKilo) || 1000;
+                    valorJornal = kilosJornal * tarifaK;
+                }
+            }
+            timeline.push({ fecha: j.fecha, tipo: 'Jornal', detalle: `${ltMap[j.loteId] || 'Lote'} (${kilosJornal}kg)`, valor: valorJornal, styleClass: 'color:var(--color-primary)', isPago: false, obj: j });
         });
         comidas.forEach(c => {
             timeline.push({ fecha: c.fecha, tipo: 'Comida', detalle: c.tipo, valor: -c.valor, styleClass: 'color:var(--color-danger)', isPago: false, obj: c });
@@ -702,11 +748,35 @@ const Obreros = {
         const ventasAll = await db.getAllByIndex('ventasCaja', 'obreroId', o.id);
         const pagosAll = await db.getAllByIndex('pagos', 'obreroId', o.id);
 
-        const totalKilos = jornalesAll.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
-        const totalGanado = jornalesAll.reduce((s, j) => s + (j.totalDia || 0), 0);
-        const totalComidasVal = comidasAll.reduce((s, c) => s + (c.valor || 0), 0);
-        const totalCajaVal = ventasAll.filter(v => v.fiado).reduce((s, v) => s + (v.valorTotal || 0), 0);
-        const totalPagadoVal = pagosAll.filter(p => p.estado !== 'anulado').reduce((s, p) => s + (p.netoAPagar || 0), 0);
+        const cicloActivo = await db.getCicloActivo();
+        let precioKilo = 0;
+        if (cicloActivo) {
+            precioKilo = cicloActivo.precioKilo || cicloActivo.precio_kilo || cicloActivo.tarifaKilo;
+        }
+        if (!precioKilo) {
+            precioKilo = await db.getConfig('tarifaKilo', 500);
+        }
+        if (!precioKilo || precioKilo <= 0) {
+            precioKilo = 1000;
+        }
+
+        const totalKilos = jornalesAll.reduce((s, j) => s + (parseFloat(j.kilosRecolectados) || 0), 0);
+        const totalGanado = jornalesAll.reduce((s, j) => {
+            const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+            let valorJornal = parseFloat(j.totalDia) || 0;
+            if (valorJornal <= 0) {
+                if (j.tipoPago === 'dia') {
+                    valorJornal = parseFloat(j.tarifaDia) || 40000;
+                } else {
+                    const tarifaK = parseFloat(precioKilo) || 1000;
+                    valorJornal = kilosJornal * tarifaK;
+                }
+            }
+            return s + valorJornal;
+        }, 0);
+        const totalComidasVal = comidasAll.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0);
+        const totalCajaVal = ventasAll.filter(v => v.fiado).reduce((s, v) => s + (parseFloat(v.valorTotal) || 0), 0);
+        const totalPagadoVal = pagosAll.filter(p => p.estado !== 'anulado').reduce((s, p) => s + (parseFloat(p.netoAPagar) || 0), 0);
         const saldoCuentas = totalGanado - totalComidasVal - totalCajaVal - totalPagadoVal;
 
         const monthStr = String(month + 1).padStart(2, '0');
@@ -714,8 +784,14 @@ const Obreros = {
 
         const monthJornales = jornalesAll.filter(j => j.fecha.startsWith(prefix));
         const monthComidas = comidasAll.filter(c => c.fecha.startsWith(prefix));
-        const monthKilos = monthJornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
-        const monthGanado = monthJornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+        const monthKilos = monthJornales.reduce((s, j) => s + (parseFloat(j.kilosRecolectados) || 0), 0);
+        const monthGanado = monthJornales.reduce((s, j) => {
+            const kilosJornal = parseFloat(j.kilosRecolectados) || 0;
+            const totalDiaVal = parseFloat(j.totalDia) || 0;
+            const tarifaDiaVal = parseFloat(j.tarifaDia) || 40000;
+            const valorJornal = totalDiaVal || (j.tipoPago === 'dia' ? tarifaDiaVal : kilosJornal * precioKilo);
+            return s + valorJornal;
+        }, 0);
 
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         
@@ -874,6 +950,18 @@ const Obreros = {
         const obrero = await db.get('obreros', obreroId);
         if (!obrero) return;
 
+        const cicloActivo = await db.getCicloActivo();
+        let precioKilo = 0;
+        if (cicloActivo) {
+            precioKilo = cicloActivo.precioKilo || cicloActivo.precio_kilo || cicloActivo.tarifaKilo;
+        }
+        if (!precioKilo) {
+            precioKilo = await db.getConfig('tarifaKilo', 500);
+        }
+        if (!precioKilo || precioKilo <= 0) {
+            precioKilo = 1000;
+        }
+
         const allJornales = await db.getAllByIndex('jornales', 'obreroId', obreroId);
         const allComidas = await db.getAllByIndex('comida', 'obreroId', obreroId);
         const allVentas = await db.getAllByIndex('ventasCaja', 'obreroId', obreroId);
@@ -882,9 +970,21 @@ const Obreros = {
         const dayComidas = allComidas.filter(c => c.fecha === fechaStr);
         const dayVentas = allVentas.filter(v => v.fecha === fechaStr);
 
-        const totalKilos = dayJornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
-        const totalGanado = dayJornales.reduce((s, j) => s + (j.totalDia || 0), 0);
-        const totalDeducciones = dayComidas.reduce((s, c) => s + (c.valor || 0), 0) + dayVentas.filter(v => v.fiado).reduce((s, v) => s + (v.valorTotal || 0), 0);
+        const totalKilos = dayJornales.reduce((s, j) => s + (parseFloat(j.kilosRecolectados) || 0), 0);
+        const totalGanado = dayJornales.reduce((s, j) => {
+            const kilosJornal = parseFloat(j.kilosRecolectados) || (parseFloat(j.kilosAM || 0) + parseFloat(j.kilosPM || 0)) || 0;
+            let valorJornal = parseFloat(j.totalDia) || 0;
+            if (valorJornal <= 0) {
+                if (j.tipoPago === 'dia') {
+                    valorJornal = parseFloat(j.tarifaDia) || 40000;
+                } else {
+                    const tarifaK = parseFloat(precioKilo) || 1000;
+                    valorJornal = kilosJornal * tarifaK;
+                }
+            }
+            return s + valorJornal;
+        }, 0);
+        const totalDeducciones = dayComidas.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0) + dayVentas.filter(v => v.fiado).reduce((s, v) => s + (parseFloat(v.valorTotal) || 0), 0);
 
         const lotes = await db.getByFinca('lotes');
         const ltMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
@@ -926,12 +1026,18 @@ const Obreros = {
                         <h4 style="margin:0 0 8px; font-size:0.85rem; text-transform:uppercase; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px"><i data-lucide="scale" style="width:14px; color:var(--color-primary)"></i> Recolección (Pesajes)</h4>
                         ${dayJornales.length === 0 ? `<p class="text-muted" style="font-size:0.8rem; margin:0; padding-left:20px;">No registra recolección.</p>` : `
                             <div style="display:flex; flex-direction:column; gap:6px; padding-left:20px;">
-                                ${dayJornales.map(j => `
-                                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
-                                        <span class="text-muted">${ltMap[j.loteId] || 'Lote'} (AM: ${j.kilosAM || 0}kg / PM: ${j.kilosPM || 0}kg)</span>
-                                        <strong style="color:var(--text-main);">${j.kilosRecolectados} kg ($${(j.totalDia || 0).toLocaleString()})</strong>
-                                    </div>
-                                `).join('')}
+                                ${dayJornales.map(j => {
+                                    const kilosJornal = parseFloat(j.kilosRecolectados) || 0;
+                                    const totalDiaVal = parseFloat(j.totalDia) || 0;
+                                    const tarifaDiaVal = parseFloat(j.tarifaDia) || 40000;
+                                    const valorJornal = totalDiaVal || (j.tipoPago === 'dia' ? tarifaDiaVal : kilosJornal * precioKilo);
+                                    return `
+                                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
+                                            <span class="text-muted">${ltMap[j.loteId] || 'Lote'} (AM: ${j.kilosAM || 0}kg / PM: ${j.kilosPM || 0}kg)</span>
+                                            <strong style="color:var(--text-main);">${kilosJornal} kg ($${valorJornal.toLocaleString()})</strong>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
                         `}
                     </div>

@@ -102,10 +102,10 @@ const MiRendimiento = {
         }
 
         // KPIs
-        const kilosSemana = jornalesCiclo.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+        const kilosSemana = jornalesCiclo.reduce((s, j) => s + (parseFloat(j.kilosRecolectados) || 0), 0);
         const gananciasBrutas = kilosSemana * precioKilo;
-        const descuentoComida = comidasCiclo.reduce((s, c) => s + (c.valor || 0), 0);
-        const descuentoTienda = ventasCiclo.reduce((s, v) => s + (v.valorTotal || 0), 0);
+        const descuentoComida = comidasCiclo.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0);
+        const descuentoTienda = ventasCiclo.reduce((s, v) => s + (parseFloat(v.valorTotal) || 0), 0);
         const estimadoNeto = gananciasBrutas - descuentoComida - descuentoTienda;
         const diasTrabajados = new Set(jornalesCiclo.map(j => j.fecha)).size;
 
@@ -124,11 +124,13 @@ const MiRendimiento = {
             if (!historialPorDia[j.fecha]) {
                 historialPorDia[j.fecha] = { kilos: 0, valor: 0, lotes: new Set() };
             }
-            historialPorDia[j.fecha].kilos += j.kilosRecolectados || 0;
+            historialPorDia[j.fecha].kilos += parseFloat(j.kilosRecolectados) || 0;
             
             // Recalcular valor del jornal si j.totalDia es cero para evitar discrepancias visuales
-            const kilosJornal = j.kilosRecolectados || 0;
-            const valorJornal = j.totalDia || (j.tipoPago === 'dia' ? (j.tarifaDia || 40000) : kilosJornal * precioKilo);
+            const kilosJornal = parseFloat(j.kilosRecolectados) || 0;
+            const totalDiaVal = parseFloat(j.totalDia) || 0;
+            const tarifaDiaVal = parseFloat(j.tarifaDia) || 40000;
+            const valorJornal = totalDiaVal || (j.tipoPago === 'dia' ? tarifaDiaVal : kilosJornal * precioKilo);
             historialPorDia[j.fecha].valor += valorJornal;
             
             if (j.loteId && ltMap[j.loteId]) historialPorDia[j.fecha].lotes.add(ltMap[j.loteId]);

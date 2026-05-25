@@ -1,9 +1,15 @@
 {
-	"inputs": [],
-	"servers": {
-		"supabase": {
-			"type": "http",
-			"url": "https://mcp.supabase.com/mcp?project_ref=foqrpzdzzfhqyiorohyn"
-		}
-	}
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-supabase"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://foqrpzdzzfhqyiorohyn.supabase.co",
+        "SUPABASE_API_KEY": "sb_secret_9680345b5cc450e1ef002f232f7b88df1bf2b8bc"
+      }
+    }
+  }
 }
