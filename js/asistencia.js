@@ -19,6 +19,11 @@ const Asistencia = {
     masivoAsistencias: {}, // Mapa de asistencias por obreroId hoy
 
     async render() {
+        const overlay = document.getElementById('auditoria-drawer-overlay');
+        const drawer = document.getElementById('auditoria-drawer');
+        if (overlay) overlay.remove();
+        if (drawer) drawer.remove();
+
         const app = document.getElementById('app');
         app.innerHTML = `
             <div class="animate-in">
@@ -28,21 +33,47 @@ const Asistencia = {
                         <h2>Asistencia</h2>
                         <p class="text-muted" style="margin:0; font-size:0.85rem">Control de asistencia y registro de nómina</p>
                     </div>
-                    <div id="as-header-actions" style="display:flex;gap:12px">
-                        <!-- Acciones dinámicas por tab -->
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <button id="btn-auditoria-obrero" class="btn-premium secondary" onclick="Asistencia.alternarVistaAuditoria()" style="height:40px">
+                            🔍 Resolver Reclamo Obrero
+                        </button>
+                        <div id="as-header-actions" style="display:flex;gap:12px">
+                            <!-- Acciones dinámicas por tab -->
+                        </div>
                     </div>
                 </div>
 
-                <div class="tabs" style="margin-bottom:24px; display:flex; gap:12px; margin-top:24px">
-                    <button class="btn-premium ${this.currentTab === 'calendario' ? 'primary' : 'secondary'} flex-1" onclick="Asistencia.changeTab('calendario')">
-                        <i data-lucide="calendar-days"></i> Calendario Mensual
-                    </button>
-                    <button class="btn-premium ${this.currentTab === 'masivo' ? 'primary' : 'secondary'} flex-1" onclick="Asistencia.changeTab('masivo')">
-                        <i data-lucide="zap"></i> Registro Masivo Diario
-                    </button>
+                <div id="asistencia-planilla-masiva">
+                    <div class="tabs" style="margin-bottom:24px; display:flex; gap:12px; margin-top:24px">
+                        <button class="btn-premium ${this.currentTab === 'calendario' ? 'primary' : 'secondary'} flex-1" onclick="Asistencia.changeTab('calendario')">
+                            <i data-lucide="calendar-days"></i> Calendario Mensual
+                        </button>
+                        <button class="btn-premium ${this.currentTab === 'masivo' ? 'primary' : 'secondary'} flex-1" onclick="Asistencia.changeTab('masivo')">
+                            <i data-lucide="zap"></i> Registro Masivo Diario
+                        </button>
+                    </div>
+
+                    <div id="as-tab-content"></div>
                 </div>
 
-                <div id="as-tab-content"></div>
+                <div id="asistencia-auditoria-individual" style="display: none; margin-top:24px" class="animate-in">
+                    <div class="card-glass" style="margin-bottom:24px; position:relative; overflow:hidden; padding:20px">
+                        <div style="position:absolute; top:-50px; left:-50px; width:150px; height:150px; background:var(--color-primary); border-radius:50%; filter:blur(60px); opacity:0.15; z-index:-1"></div>
+                        <div style="display:flex; align-items:center; gap:16px">
+                            <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0">
+                                <i data-lucide="user-search" style="color:var(--text-main); width:24px; height:24px"></i>
+                            </div>
+                            <div style="flex:1">
+                                <label class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; letter-spacing:0.05em; margin-bottom:6px; display:block">Seleccionar Obrero para Auditoría de Reclamos</label>
+                                <select class="input-premium" id="select-auditoria-obrero" onchange="Asistencia.cargarAlmanaqueObreroEspecifico(this.value)" style="background:rgba(0,0,0,0.2) !important; border:1px solid rgba(255,255,255,0.1) !important; color:var(--text-main); font-weight:600; font-size:1.05rem; padding:14px 16px;">
+                                    <option value="">Seleccione un obrero...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="contenedor-almanaque-dinamico"></div>
+                </div>
             </div>
             <style>
                 .active-brush { transform: scale(1.05); filter: brightness(1.2); box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; border-color:currentColor !important; }
@@ -66,6 +97,116 @@ const Asistencia = {
                 .badge-estado.inasistencia { background: rgba(239, 68, 68, 0.1); color: var(--color-danger); border:1px solid rgba(239, 68, 68, 0.2); }
                 .badge-estado.descanso { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border:1px solid rgba(59, 130, 246, 0.2); }
                 .badge-estado.domingo { background: var(--bg-app); color: var(--text-muted); border:1px solid var(--border-color); }
+
+                /* Premium Almanaque Heatmap Grid responsivo */
+                .almanaque-grid {
+                    display: grid;
+                    grid-template-columns: repeat(7, 1fr);
+                    gap: 6px;
+                    margin-top: 16px;
+                }
+                .almanaque-dia {
+                    aspect-ratio: 1;
+                    background: var(--bg-card);
+                    border: 1px solid var(--border-color);
+                    border-radius: 8px;
+                    padding: 8px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    -webkit-tap-highlight-color: transparent;
+                    position: relative;
+                }
+                .almanaque-dia:hover {
+                    transform: translateY(-2px);
+                    box-shadow: var(--shadow-sm);
+                }
+                .almanaque-dia:active {
+                    transform: scale(0.95);
+                }
+                .almanaque-dia-num {
+                    font-size: 0.75rem;
+                    color: var(--text-muted);
+                    font-weight: 600;
+                    align-self: flex-start;
+                }
+                .almanaque-dia-info {
+                    font-size: 0.85rem;
+                    font-weight: 800;
+                    align-self: flex-end;
+                }
+                /* Heatmap colors using project HSL / custom themes */
+                .calor-alto {
+                    background: #15803d !important;
+                    color: #ffffff !important;
+                    border-color: #166534 !important;
+                }
+                .calor-alto .almanaque-dia-num {
+                    color: rgba(255,255,255,0.7) !important;
+                }
+                .calor-medio {
+                    background: #22c55e !important;
+                    color: #ffffff !important;
+                    border-color: #15803d !important;
+                }
+                .calor-medio .almanaque-dia-num {
+                    color: rgba(255,255,255,0.7) !important;
+                }
+                .calor-bajo {
+                    background: #bbf7d0 !important;
+                    color: #166534 !important;
+                    border-color: #86efac !important;
+                }
+                .calor-bajo .almanaque-dia-num {
+                    color: #166534 !important;
+                }
+                .calor-alerta {
+                    background: hsl(35, 100%, 90%) !important;
+                    color: #b45309 !important;
+                    border: 2px solid #f97316 !important;
+                }
+                .calor-alerta .almanaque-dia-num {
+                    color: #b45309 !important;
+                }
+                .calor-vacio {
+                    opacity: 0.4;
+                    background: var(--bg-card);
+                }
+                
+                /* Bottom Sheet Drawer for mobile touch claim solving */
+                .ui-drawer-bottom {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: var(--bg-surface);
+                    border-top: 1px solid var(--border-color);
+                    border-top-left-radius: 20px;
+                    border-top-right-radius: 20px;
+                    box-shadow: 0 -10px 30px rgba(0,0,0,0.3);
+                    z-index: 1000;
+                    padding: 24px;
+                    transform: translateY(100%);
+                    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .ui-drawer-bottom.open {
+                    transform: translateY(0);
+                }
+                .ui-drawer-overlay {
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 999;
+                    opacity: 0;
+                    pointer-events: none;
+                    transition: opacity 0.3s ease;
+                }
+                .ui-drawer-overlay.open {
+                    opacity: 1;
+                    pointer-events: auto;
+                }
             </style>
         `;
 
@@ -759,13 +900,352 @@ const Asistencia = {
         if (ops.length > 0) await Promise.all(ops);
     },
 
-    /**
-     * Sincroniza un solo jornal (Guardado Individual o Eliminación)
-     * @param {number} obreroId 
-     * @param {string} fecha 
-     * @param {number} kilosTotal 
-     * @param {boolean} isDelete True si estamos borrando el jornal
-     */
+    alternarVistaAuditoria() {
+        const masiva = document.getElementById('asistencia-planilla-masiva');
+        const auditoria = document.getElementById('asistencia-auditoria-individual');
+        const btn = document.getElementById('btn-auditoria-obrero');
+        
+        if (auditoria.style.display === 'none') {
+            masiva.style.display = 'none';
+            auditoria.style.display = 'block';
+            btn.innerHTML = '⬅ Volver a Planilla General';
+            btn.className = 'btn-premium danger'; // color de advertencia/rojo
+            this.poblarSelectorObrerosAuditoria();
+        } else {
+            masiva.style.display = 'block';
+            auditoria.style.display = 'none';
+            btn.innerHTML = '🔍 Resolver Reclamo Obrero';
+            btn.className = 'btn-premium secondary';
+            
+            // Clean up
+            const select = document.getElementById('select-auditoria-obrero');
+            if (select) select.value = '';
+            const container = document.getElementById('contenedor-almanaque-dinamico');
+            if (container) container.innerHTML = '';
+            this.cerrarDrawer();
+        }
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    async poblarSelectorObrerosAuditoria() {
+        const select = document.getElementById('select-auditoria-obrero');
+        if (!select) return;
+
+        // Evita duplicar si ya tiene más que la opción por defecto
+        if (select.options.length > 1) return;
+
+        const obreros = (await db.getByFinca('obreros')).filter(o => o.estado === 'activo');
+        
+        obreros.forEach(o => {
+            const cedulaStr = o.cedula ? String(o.cedula) : '';
+            const ultimosCuatro = cedulaStr.length >= 4 ? cedulaStr.slice(-4) : cedulaStr.padStart(4, '0');
+            const option = document.createElement('option');
+            option.value = o.id;
+            option.textContent = `${o.nombre} (${ultimosCuatro})`;
+            select.appendChild(option);
+        });
+    },
+
+    async cargarAlmanaqueObreroEspecifico(obreroId) {
+        const container = document.getElementById('contenedor-almanaque-dinamico');
+        if (!container) return;
+
+        if (!obreroId) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const y = Asistencia.currentYear;
+        const m = Asistencia.currentMonth;
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const fechaInicio = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+        const fechaFin = `${y}-${String(m + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+        container.innerHTML = '<div class="text-center" style="padding:2rem"><div class="spinner"></div> Procesando auditoría...</div>';
+
+        try {
+            // Consulta paralela hacia IndexedDB/Supabase
+            const [jornales, comidas, asistencias, lotes] = await Promise.all([
+                db.getJornalesByObreroAndRange(parseInt(obreroId), fechaInicio, fechaFin),
+                db.getComidaByObreroAndRange(parseInt(obreroId), fechaInicio, fechaFin),
+                db.getAllByIndex('asistencia', 'obreroId', parseInt(obreroId)),
+                db.getByFinca('lotes')
+            ]);
+
+            const ltMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
+
+            const asistenciasMes = asistencias.filter(a => {
+                const d = new Date(a.fecha + 'T12:00:00');
+                return d.getMonth() === m && d.getFullYear() === y;
+            });
+
+            // Map data by day
+            Asistencia._auditoriaHistorial = {};
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                const dayJornales = jornales.filter(j => j.fecha === dateStr);
+                const dayComidas = comidas.filter(c => c.fecha === dateStr);
+                const dayAsistencia = asistenciasMes.find(a => a.fecha === dateStr);
+
+                const kilosTotal = dayJornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+                const hasFood = dayComidas.length > 0;
+                const hasAttendance = dayAsistencia !== undefined;
+                
+                let calorClass = 'calor-vacio';
+                if (kilosTotal >= 80) {
+                    calorClass = 'calor-alto';
+                } else if (kilosTotal >= 40) {
+                    calorClass = 'calor-medio';
+                } else if (kilosTotal > 0) {
+                    calorClass = 'calor-bajo';
+                } else if (kilosTotal === 0 && (hasAttendance || hasFood)) {
+                    calorClass = 'calor-alerta'; // Alerta Ámbar: asistencia o comida pero 0 kilos
+                }
+
+                Asistencia._auditoriaHistorial[dateStr] = {
+                    dateStr,
+                    day,
+                    kilosTotal,
+                    jornales: dayJornales,
+                    comidas: dayComidas,
+                    asistencia: dayAsistencia,
+                    hasFood,
+                    hasAttendance,
+                    calorClass,
+                    ltMap
+                };
+            }
+
+            // Draw almanaque grilla
+            const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            let htmlGrid = dayNames.map(d => `<div class="calendar-header-cell" style="font-weight:700">${d}</div>`).join('');
+
+            const firstDayIndex = new Date(y, m, 1).getDay(); // 0=Sunday
+            
+            // Empty leading cells
+            for (let i = 0; i < firstDayIndex; i++) {
+                htmlGrid += '<div class="calendar-cell empty"></div>';
+            }
+
+            // Draw active cells
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const data = Asistencia._auditoriaHistorial[dateStr];
+                
+                let infoContent = '';
+                if (data.kilosTotal > 0) {
+                    infoContent = `${data.kilosTotal} kg`;
+                } else if (data.calorClass === 'calor-alerta') {
+                    infoContent = '⚠️ 0 kg';
+                }
+
+                htmlGrid += `
+                    <div class="almanaque-dia ${data.calorClass}" onclick="Asistencia.mostrarDesgloseDetallado('${dateStr}')">
+                        <span class="almanaque-dia-num">${day}</span>
+                        <span class="almanaque-dia-info">${infoContent}</span>
+                    </div>
+                `;
+            }
+
+            // Legend layout
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            
+            container.innerHTML = `
+                <div class="card-premium animate-in" style="padding:24px; margin-bottom:24px">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:12px">
+                        <h4 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px">
+                            <i data-lucide="bar-chart-3" style="color:var(--color-primary)"></i> Almanaque de Rendimiento: ${months[m]} ${y}
+                        </h4>
+                    </div>
+
+                    <!-- Grilla del Calendario -->
+                    <div class="almanaque-grid">
+                        ${htmlGrid}
+                    </div>
+
+                    <!-- Leyenda del Mapa de Calor -->
+                    <div style="margin-top:24px; display:flex; gap:16px; flex-wrap:wrap; justify-content:center; padding:12px; background:var(--bg-app); border-radius:10px; border:1px solid var(--border-color)">
+                        <div style="display:flex; align-items:center; gap:6px; font-size:0.8rem">
+                            <span style="width:16px; height:16px; border-radius:4px; display:inline-block; background:#15803d"></span>
+                            <span>Excelente (≥ 80 kg)</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px; font-size:0.8rem">
+                            <span style="width:16px; height:16px; border-radius:4px; display:inline-block; background:#22c55e"></span>
+                            <span>Estándar (≥ 40 kg)</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px; font-size:0.8rem">
+                            <span style="width:16px; height:16px; border-radius:4px; display:inline-block; background:#bbf7d0"></span>
+                            <span>Bajo (< 40 kg)</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px; font-size:0.8rem">
+                            <span style="width:16px; height:16px; border-radius:4px; display:inline-block; background:hsl(35, 100%, 90%); border:1px solid #f97316"></span>
+                            <span>Alerta (Asistencia/Comida sin peso)</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (window.lucide) window.lucide.createIcons();
+
+        } catch (e) {
+            console.error('Error cargando auditoría:', e);
+            container.innerHTML = `<div class="card-premium danger text-center" style="padding:20px">Error al procesar el expediente del obrero.</div>`;
+        }
+    },
+
+    mostrarDesgloseDetallado(fecha) {
+        const data = Asistencia._auditoriaHistorial[fecha];
+        if (!data) return;
+
+        // Ensure drawer elements exist in DOM
+        let overlay = document.getElementById('auditoria-drawer-overlay');
+        let drawer = document.getElementById('auditoria-drawer');
+
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'auditoria-drawer-overlay';
+            overlay.className = 'ui-drawer-overlay';
+            overlay.onclick = () => Asistencia.cerrarDrawer();
+            document.body.appendChild(overlay);
+        }
+
+        if (!drawer) {
+            drawer = document.createElement('div');
+            drawer.id = 'auditoria-drawer';
+            drawer.className = 'ui-drawer-bottom';
+            document.body.appendChild(drawer);
+        }
+
+        // Format date beautifully
+        const [year, month, day] = fecha.split('-');
+        const dateObj = new Date(year, month - 1, day);
+        const formatTitle = dateObj.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+        // Build list of weights (pesadas)
+        let pesadasHtml = '<p class="text-muted" style="font-size:0.9rem">No registra pesajes de café este día.</p>';
+        if (data.jornales.length > 0) {
+            pesadasHtml = data.jornales.map((j, idx) => `
+                <div style="background:var(--bg-app); border:1px solid var(--border-color); padding:12px; border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center">
+                    <div>
+                        <strong style="color:var(--text-main)">Registro #${idx + 1}</strong>
+                        <div class="text-muted" style="font-size:0.75rem">Lote: ${data.ltMap[j.loteId] || 'Lote Eliminado'} | Tipo: ${j.tipoPago === 'kilo' ? 'Por Kilo' : 'Por Día'}</div>
+                    </div>
+                    <div style="text-align:right">
+                        <span style="font-size:1.1rem; font-weight:800; color:var(--color-primary)">${j.kilosRecolectados} kg</span>
+                        <div style="font-size:0.75rem; color:var(--text-muted)">AM: ${j.kilosAM || 0} kg | PM: ${j.kilosPM || 0} kg</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Build foods detailed view
+        let comidasHtml = '<span style="font-size:0.85rem; font-weight:600; color:var(--text-muted)">No consumió servicio de comedor.</span>';
+        if (data.comidas.length > 0) {
+            comidasHtml = data.comidas.map(c => `
+                <span class="badge-estado media" style="font-size:0.85rem; padding:6px 12px; display:inline-flex; align-items:center; gap:4px">
+                    <i data-lucide="utensils" style="width:14px; height:14px"></i>
+                    ${c.tipo} ($${c.valor.toLocaleString()})
+                </span>
+            `).join('');
+        }
+
+        // Attendance state
+        let asistenciaHtml = '';
+        if (data.asistencia) {
+            let badgeClass = data.asistencia.tipo;
+            let text = data.asistencia.tipo;
+            if (text === 'inasistencia') text = 'falta';
+            asistenciaHtml = `<span class="badge-estado ${badgeClass}" style="font-size:0.9rem; padding:6px 14px">${text.toUpperCase()} ${data.asistencia.auto ? '⚡' : ''}</span>`;
+        } else {
+            asistenciaHtml = `<span class="badge-estado" style="background:var(--bg-app); border:1px dashed var(--border-color); color:var(--text-muted); font-size:0.9rem; padding:6px 14px">SIN REGISTRO</span>`;
+        }
+
+        // Inject content
+        drawer.innerHTML = `
+            <div style="width:40px; height:4px; background:var(--border-color); border-radius:2px; margin: 0 auto 16px; cursor:pointer" onclick="Asistencia.cerrarDrawer()"></div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:12px">
+                <div>
+                    <h3 style="margin:0; font-size:1.2rem; font-weight:800; color:var(--text-main); text-transform:capitalize">${formatTitle}</h3>
+                    <p class="text-muted" style="margin:2px 0 0; font-size:0.85rem">Auditoría y Resolución de Reclamos en Finca</p>
+                </div>
+                <button onclick="Asistencia.cerrarDrawer()" style="background:transparent; border:none; color:var(--text-muted); font-size:1.5rem; cursor:pointer; line-height:1">&times;</button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:20px; margin-bottom:24px; max-height: 45vh; overflow-y: auto;">
+                
+                <!-- Kilos y Asistencia Row -->
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap">
+                    <div>
+                        <span class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px">Kilos Totales del Día</span>
+                        <span style="font-size:2rem; font-weight:900; color:${data.kilosTotal > 0 ? 'var(--color-primary)' : 'var(--text-muted)'}">${data.kilosTotal.toLocaleString()} kg</span>
+                    </div>
+                    <div>
+                        <span class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; display:block; margin-bottom:6px; text-align:right">Estado de Asistencia</span>
+                        <div style="text-align:right">${asistenciaHtml}</div>
+                    </div>
+                </div>
+
+                <!-- Pesadas Detalle -->
+                <div>
+                    <h5 style="margin:0 0 10px; font-size:0.85rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:6px">
+                        <i data-lucide="scale" style="width:16px; height:16px"></i> Pesadas Registradas
+                    </h5>
+                    ${pesadasHtml}
+                </div>
+
+                <!-- Comidas Detalle -->
+                <div>
+                    <h5 style="margin:0 0 10px; font-size:0.85rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:6px">
+                        <i data-lucide="utensils" style="width:16px; height:16px"></i> Alimentación / Comedor
+                    </h5>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap">
+                        ${comidasHtml}
+                    </div>
+                </div>
+
+                <!-- Alertas de Conflicto -->
+                ${data.calorClass === 'calor-alerta' ? `
+                    <div style="background:rgba(217, 119, 6, 0.1); border:1px solid #d97706; border-radius:10px; padding:16px; display:flex; gap:12px; align-items:flex-start">
+                        <i data-lucide="alert-triangle" style="color:#d97706; flex-shrink:0; width:20px; height:20px"></i>
+                        <div>
+                            <strong style="color:#b45309; font-size:0.9rem; display:block; margin-bottom:2px">⚠️ Conflicto de Registro Detectado</strong>
+                            <p style="margin:0; font-size:0.8rem; color:#b45309; line-height:1.4">El obrero tiene asistencia o comida registrada este día, pero <strong>no pesó ningún kilo de café</strong>. Confirme de inmediato con el recolector si se trató de un día de descanso pagado, media jornada no productiva, o un error de pesaje en el recibidor.</p>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+
+            <!-- Drawer Close Button -->
+            <button class="btn-premium primary" style="width:100%; padding:14px; font-size:1rem; font-weight:700; border-radius:12px" onclick="Asistencia.cerrarDrawer()">
+                Confirmar y Cerrar Auditoría
+            </button>
+        `;
+
+        if (window.lucide) window.lucide.createIcons();
+
+        // Trigger open transitions
+        setTimeout(() => {
+            overlay.classList.add('open');
+            drawer.classList.add('open');
+        }, 10);
+    },
+
+    cerrarDrawer() {
+        const overlay = document.getElementById('auditoria-drawer-overlay');
+        const drawer = document.getElementById('auditoria-drawer');
+        if (overlay) {
+            overlay.classList.remove('open');
+            setTimeout(() => overlay.remove(), 300);
+        }
+        if (drawer) {
+            drawer.classList.remove('open');
+            setTimeout(() => drawer.remove(), 300);
+        }
+    },
+
     async syncAutoAsistencia(obreroId, fecha, kilosTotal, isDelete = false) {
         const recordsHoy = await db.getAllByIndex('asistencia', 'fecha', fecha);
         const attendance = recordsHoy.find(a => a.obreroId === obreroId);
