@@ -143,7 +143,7 @@ const Jornales = {
                 <div class="grid-3 mb-2" style="margin-bottom:24px">
                     <div class="input-group">
                         <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Fecha</label>
-                        <input type="date" class="input-premium" id="rr-fecha" value="${today}" max="${today}">
+                        <input type="date" class="input-premium" id="rr-fecha" value="${today}" max="${today}" onchange="Jornales.validarFechaRapido(this.value); Jornales.loadHistory();">
                     </div>
                     <div class="input-group">
                         <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Lote</label>
@@ -222,6 +222,9 @@ const Jornales = {
             const firstInput = container.querySelector('.rr-am');
             if (firstInput) firstInput.focus();
         }, 100);
+        setTimeout(() => {
+            Jornales.validarFechaRapido(today);
+        }, 150);
     },
 
     calcRowTotal(input) {
@@ -408,7 +411,7 @@ const Jornales = {
                     <div class="grid-2" style="margin-bottom:16px">
                         <div class="input-group">
                             <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Fecha</label>
-                            <input type="date" class="input-premium" id="jn-fecha" value="${today}" max="${today}" required>
+                            <input type="date" class="input-premium" id="jn-fecha" value="${today}" max="${today}" onchange="Jornales.validarFechaIndividual(this.value)" required>
                         </div>
                         <div class="input-group">
                             <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Tipo de pago</label>
@@ -479,6 +482,9 @@ const Jornales = {
 
         if (window.lucide) window.lucide.createIcons();
         Jornales.calcTotal();
+        setTimeout(() => {
+            Jornales.validarFechaIndividual(today);
+        }, 150);
     },
 
     async convertLatas(jornada) {
@@ -511,6 +517,55 @@ const Jornales = {
         let total = tipo === 'kilo' ? kilosTotal * tarifaKilo : tarifaDia;
         const el = document.getElementById('jn-total');
         if (el) el.value = '$' + total.toLocaleString();
+    },
+
+    async validarFechaRapido(fecha) {
+        const isLocked = await Ciclos.isDateLocked(fecha);
+        const btn = document.getElementById('btn-save-rapido');
+        if (isLocked) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="lock"></i> Período Cerrado';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            App.toast('🔒 Período Cerrado: No es posible realizar modificaciones en este ciclo contable.', 'warning');
+            document.querySelectorAll('.rr-am, .rr-pm').forEach(input => { input.disabled = true; });
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check"></i> Guardar Jornales';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            document.querySelectorAll('.rr-am, .rr-pm').forEach(input => { input.disabled = false; });
+        }
+    },
+
+    async validarFechaIndividual(fecha) {
+        const isLocked = await Ciclos.isDateLocked(fecha);
+        const btn = document.getElementById('btn-save-individual');
+        const inputs = ['jn-tipo', 'jn-obrero', 'jn-lote', 'jn-latas-am', 'jn-latas-pm', 'jn-kilos-am', 'jn-kilos-pm'];
+        if (isLocked) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="lock"></i> Período Cerrado';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            App.toast('🔒 Período Cerrado: No es posible realizar modificaciones en este ciclo contable.', 'warning');
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = true;
+            });
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check-circle"></i> Registrar Jornal';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = false;
+            });
+        }
     },
 
     async save(e) {

@@ -218,7 +218,16 @@ const Caja = {
         });
     },
 
-    selectWorkerPOS(id) {
+    async selectWorkerPOS(id) {
+        const today = new Date().toLocaleDateString('en-CA');
+        const isLocked = await Ciclos.isDateLocked(today);
+        if (isLocked) {
+            return App.alert({
+                title: '🔒 Período Cerrado',
+                message: 'La contabilidad para el día de hoy ya se encuentra cerrada. No es posible iniciar transacciones en la tienda.',
+                type: 'error'
+            });
+        }
         this._selectedObreroId = id;
         this.renderTab();
     },
@@ -241,6 +250,16 @@ const Caja = {
     async registrarVenta1Tap(productoId, productoNombre, precio) {
         if (!this._selectedObreroId) return;
 
+        const fecha = new Date().toLocaleDateString('en-CA');
+        const isLocked = await Ciclos.isDateLocked(fecha);
+        if (isLocked) {
+            return App.alert({
+                title: '🔒 Período Cerrado',
+                message: 'No es posible registrar consumos en fechas contables que ya fueron cerradas y liquidadas.',
+                type: 'error'
+            });
+        }
+
         const cicloActivo = await db.getCicloActivo();
         if (!cicloActivo) {
             return App.alert({ title: 'Ciclo inactivo', message: 'No se pueden registrar ventas sin un ciclo contable activo abierto.', type: 'warning' });
@@ -257,7 +276,6 @@ const Caja = {
         // Bloqueo interfaz temporalmente
         App.alert({ title: 'Registrando...', message: 'Generando comprobante virtual', type: 'info', icon: '⏳' });
 
-        const fecha = new Date().toLocaleDateString('en-CA');
         const fiado = !this._modoContado;
         const valorTotal = precio * 1;
 

@@ -168,11 +168,12 @@ const Ciclos = {
         const fincaId = db.getFincaActiva();
         const ciclos = await db.getByFinca('ciclos');
 
-        // Verifica si la fecha cae en un ciclo de esta finca que ya esté cerrado (!activo)
+        // Verifica si la fecha cae en un ciclo de esta finca que ya esté cerrado (!activo o estado CLOSED)
         const closedCiclo = ciclos.find(c => {
             const fInicio = c.fechaInicio || c.fechainicio;
             const fFin = c.fechaFin || c.fechafin;
-            return c.fincaId === fincaId && !c.activo && fInicio && fFin && dateStr >= fInicio && dateStr <= fFin;
+            const isClosed = !c.activo || c.estado === 'CLOSED';
+            return c.fincaId === fincaId && isClosed && fInicio && fFin && dateStr >= fInicio && dateStr <= fFin;
         });
         return closedCiclo || false;
     },
@@ -397,6 +398,7 @@ const Ciclos = {
 
         // Close current cycle
         ciclo.activo = false;
+        ciclo.estado = 'CLOSED';
         ciclo.totalKilos = stats.kilos;
         ciclo.totalPagado = liquidar ? stats.pagado + stats.kilos : stats.pagado; // recalc if liquidated
         ciclo.totalComida = stats.comida;
@@ -498,14 +500,51 @@ const Ciclos = {
         const fin = new Date(inicio);
         fin.setDate(fin.getDate() + 6);
 
-        const numSemana = Ciclos.getNumeroSemana(inicio);
+        // Indexación Contable Rígida de 4 semanas
+        let ano = hoy.getFullYear();
+        let mesContable = hoy.getMonth() + 1;
+        let semana = 1;
+
+        if (allCiclos.length > 0) {
+            // Find the most recent cycle with week indexing
+            const lastWithIndex = allCiclos.find(c => c.semana !== undefined && c.mesContable !== undefined);
+            if (lastWithIndex) {
+                if (lastWithIndex.semana < 4) {
+                    semana = lastWithIndex.semana + 1;
+                    mesContable = lastWithIndex.mesContable;
+                    ano = lastWithIndex.ano || ano;
+                } else {
+                    semana = 1;
+                    mesContable = lastWithIndex.mesContable + 1;
+                    ano = lastWithIndex.ano || ano;
+                    if (mesContable > 12) {
+                        mesContable = 1;
+                        ano += 1;
+                    }
+                }
+            } else {
+                const numSemana = Ciclos.getNumeroSemana(inicio);
+                semana = ((numSemana - 1) % 4) + 1;
+                mesContable = Math.ceil(numSemana / 4.3) || 1;
+                if (mesContable > 12) mesContable = 12;
+            }
+        } else {
+            const numSemana = Ciclos.getNumeroSemana(inicio);
+            semana = ((numSemana - 1) % 4) + 1;
+            mesContable = Math.ceil(numSemana / 4.3) || 1;
+            if (mesContable > 12) mesContable = 12;
+        }
 
         await db.add('ciclos', {
             fincaId,
-            nombre: `Semana ${numSemana} `,
+            nombre: `Año ${ano} - Mes ${mesContable} - Semana ${semana}`,
             fechaInicio: inicio.toLocaleDateString('en-CA'),
             fechaFin: fin.toLocaleDateString('en-CA'),
             activo: true,
+            estado: 'ACTIVE',
+            ano,
+            mesContable,
+            semana,
             totalKilos: 0,
             totalPagado: 0
         });

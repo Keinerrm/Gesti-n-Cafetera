@@ -543,186 +543,489 @@ const Pagos = {
             totalGanado, totalKilos, descComida, descCajaPeriodo,
             deudaTotalFiado, ltMap, prMap,
             pagosSolapados,
-            cicloId: cicloActivo.id
+            cicloId: cicloActivo.id,
+            // wizard properties
+            wizardStep: 1,
+            descComidaActive: descComida > 0,
+            descTiendaActive: deudaTotalFiado > 0,
+            descTransporteActive: false,
+            descTransporteValor: 0
         };
 
-        Pagos._renderResultado(true);
+        Pagos._renderResultado();
         if (btnCalc) { btnCalc.disabled = false; btnCalc.innerHTML = '<i data-lucide="search"></i> Consultar y Liquidar'; if (window.lucide) window.lucide.createIcons(); }
     },
 
-    _renderResultado(descontarFiado) {
+    _renderResultado() {
         const d = Pagos._liquidacion;
         if (!d) return;
 
-        const descCaja = descontarFiado ? d.deudaTotalFiado : d.descCajaPeriodo;
-        const netoAPagar = d.totalGanado - d.descComida - descCaja;
-        const totalDescuentos = d.descComida + descCaja;
+        const descComida = d.descComidaActive ? d.descComida : 0;
+        const descCaja = d.descTiendaActive ? d.deudaTotalFiado : 0;
+        const descTransporte = d.descTransporteActive ? d.descTransporteValor : 0;
+        const netoAPagar = d.totalGanado - descComida - descCaja - descTransporte;
+        const totalDescuentos = descComida + descCaja + descTransporte;
 
         const container = document.getElementById('pg-resultado');
-        container.innerHTML = `
-            <div class="card-premium mb-2 animate-in tabular-data">
-                <div class="header-premium" style="margin-bottom:16px;">
-                    <div class="header-icon" style="background:var(--bg-surface-hover)"><i data-lucide="file-check-2"></i></div>
-                    <div>
-                        <h3 style="margin:0; font-size:1.1rem">Detalle de Liquidación</h3>
-                        <p class="text-muted" style="font-size:0.85rem; margin:0">${d.obrero.nombre} &middot; ${d.fechaInicio} al ${d.fechaFin}</p>
-                    </div>
-                </div>
+        if (!container) return;
 
-                <div class="grid-3 mb-2" style="margin-bottom:24px; gap:8px">
-                    <div class="card-premium" style="padding:12px; background:var(--bg-app)!important">
-                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Ganado</div>
-                        <div style="font-size:1.3rem; font-weight:700; color:var(--color-primary)">$${d.totalGanado.toLocaleString()}</div>
-                    </div>
-                    <div class="card-premium" style="padding:12px; background:var(--bg-app)!important">
-                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Descuentos</div>
-                        <div style="font-size:1.3rem; font-weight:700; color:var(--color-danger)">$${totalDescuentos.toLocaleString()}</div>
-                    </div>
-                    <div class="card-premium" style="padding:12px; background:var(--bg-surface-hover)!important; border-color:var(--color-primary)!important">
-                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:600; margin-bottom:4px">Neto a Sugerido</div>
-                        <div style="font-size:1.3rem; font-weight:800; color:${netoAPagar >= 0 ? 'var(--text-main)' : 'var(--color-danger)'}">$${netoAPagar.toLocaleString()}</div>
-                    </div>
-                </div>
+        // Progress bar calculation for harvest target (120 kg)
+        const targetKilos = 120;
+        const harvestPct = Math.min(Math.round((d.totalKilos / targetKilos) * 100), 100);
 
-                <!-- Detalle -->
-                <p class="text-muted" style="font-size:0.85rem; text-transform:uppercase; font-weight:700; margin-bottom:12px">
-                    <i data-lucide="sun" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px"></i> 
-                    Jornales Registrados (${d.jornales.length} días · ${d.totalKilos.toLocaleString()} kg)
-                </p>
-                <div class="table-wrapper card-premium" style="padding:0; overflow:hidden; margin-bottom:24px">
-                    <table style="width:100%; border-collapse:collapse">
-                        <thead style="background:var(--bg-surface-hover); color:var(--text-muted); text-transform:uppercase; font-size:0.7rem; font-weight:700">
-                            <tr>
-                                <th style="padding:12px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Fecha / Lote</th>
-                                <th style="padding:12px 16px; text-align:right; border-bottom:1px solid var(--border-color)">Kilos</th>
-                                <th style="padding:12px 16px; text-align:right; border-bottom:1px solid var(--border-color)">Valor Día ($)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${d.jornales.length === 0 ? '<tr><td colspan="3" style="padding:24px; text-align:center; color:var(--text-muted)">Sin jornales en este período</td></tr>' :
-                d.jornales.map(j => `
-                                <tr style="border-bottom:1px solid var(--border-color)">
-                                    <td style="padding:12px 16px;">
-                                        <div>${j.fecha}</div>
-                                        <div class="text-muted" style="font-size:0.75rem">${d.ltMap[j.loteId] || '?'} </div>
-                                    </td>
-                                    <td style="padding:12px 16px; text-align:right"><strong>${(j.kilosRecolectados || 0).toLocaleString()}</strong> kg</td>
-                                    <td style="padding:12px 16px; text-align:right; font-weight:600; color:var(--color-primary)">$${(j.totalDia || 0).toLocaleString()}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
+        let stepHtml = '';
 
-                ${d.descComida > 0 ? `
-                    <p class="text-muted" style="font-size:0.85rem; text-transform:uppercase; font-weight:700; margin-bottom:12px; color:var(--color-danger)">
-                        <i data-lucide="utensils" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px"></i> 
-                        Alimentación ($${d.descComida.toLocaleString()})
+        if (d.wizardStep === 1) {
+            // STEP 1: RENDIMIENTO BRUTO
+            stepHtml = `
+                <div class="animate-in">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h4 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px">
+                            <i data-lucide="award" style="color:var(--color-primary)"></i> Paso 1: Rendimiento de Cosecha & Ganado Bruto
+                        </h4>
+                    </div>
+
+                    <!-- Meta / Progress Bar -->
+                    <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:12px; padding:16px; margin-bottom:24px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:8px">
+                            <span style="color:var(--text-muted)">Progreso de Cosecha Semanal: <strong>${d.totalKilos.toLocaleString()} kg</strong></span>
+                            <span style="font-weight:700; color:var(--color-primary)">${harvestPct}% de la Meta (${targetKilos} kg)</span>
+                        </div>
+                        <div style="height:12px; background:var(--bg-surface-hover); border-radius:6px; overflow:hidden; border:1px solid var(--border-color)">
+                            <div style="width:${harvestPct}%; height:100%; background:linear-gradient(90deg, var(--color-primary) 0%, #22c55e 100%); border-radius:6px; transition:width 0.4s ease-out"></div>
+                        </div>
+                        <p class="text-muted" style="margin:8px 0 0; font-size:0.8rem">
+                            ${d.totalKilos >= targetKilos 
+                                ? '🎉 ¡Extraordinario! Ha superado la meta promedio recomendada.' 
+                                : `Faltan ${(targetKilos - d.totalKilos).toLocaleString()} kg para alcanzar la meta del ciclo.`}
+                        </p>
+                    </div>
+
+                    <!-- Gross Earnings Display Card -->
+                    <div class="card-premium" style="background:linear-gradient(135deg, rgba(22, 163, 74, 0.04) 0%, rgba(34, 197, 94, 0.01) 100%)!important; border:1px solid rgba(22, 163, 74, 0.15); padding:24px; text-align:center; margin-bottom:24px; border-radius:16px">
+                        <span class="text-muted" style="font-size:0.8rem; text-transform:uppercase; font-weight:700; letter-spacing:0.05em">Ganancia Bruta Acumulada</span>
+                        <h2 style="font-size:3rem; font-weight:900; color:var(--color-primary); margin:8px 0">$${d.totalGanado.toLocaleString()}</h2>
+                        <p style="margin:0; font-size:0.9rem; color:var(--text-muted)">
+                            Monto bruto calculado sobre <strong>${d.totalKilos.toLocaleString()} kg</strong> de café recolectados en <strong>${d.jornales.length} días</strong>.
+                        </p>
+                    </div>
+
+                    <!-- Detailed Jornales Table -->
+                    <p class="text-muted" style="font-size:0.85rem; text-transform:uppercase; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px">
+                        <i data-lucide="calendar-days" style="width:14px; height:14px"></i> 
+                        Desglose Diario de Cosecha
                     </p>
-                    <div class="table-wrapper card-premium" style="padding:0; overflow:hidden; margin-bottom:24px">
+                    <div class="table-wrapper card-premium" style="padding:0; overflow:hidden; margin-bottom:24px; max-height: 250px; overflow-y: auto;">
                         <table style="width:100%; border-collapse:collapse">
+                            <thead style="background:var(--bg-surface-hover); color:var(--text-muted); text-transform:uppercase; font-size:0.7rem; font-weight:700">
+                                <tr>
+                                    <th style="padding:10px 16px; text-align:left; border-bottom:1px solid var(--border-color)">Fecha / Lote</th>
+                                    <th style="padding:10px 16px; text-align:right; border-bottom:1px solid var(--border-color)">Kilos</th>
+                                    <th style="padding:10px 16px; text-align:right; border-bottom:1px solid var(--border-color)">Bruto ($)</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                ${d.comidas.map(c => `
+                                ${d.jornales.length === 0 ? '<tr><td colspan="3" style="padding:24px; text-align:center; color:var(--text-muted)">Sin jornales en este período</td></tr>' :
+                                d.jornales.map(j => `
                                     <tr style="border-bottom:1px solid var(--border-color)">
-                                        <td style="padding:12px 16px;">${c.fecha} <br><span class="text-muted" style="font-size:0.75rem">${c.tipo} ${c.loteId ? `(${d.ltMap[c.loteId] || 'Lote Eliminado'})` : ''}</span></td>
-                                        <td style="padding:12px 16px; text-align:right; color:var(--color-danger)">-$${(c.valor || 0).toLocaleString()}</td>
+                                        <td style="padding:10px 16px;">
+                                            <div style="font-weight:600">${j.fecha}</div>
+                                            <div class="text-muted" style="font-size:0.75rem">${d.ltMap[j.loteId] || 'Lote Eliminado'}</div>
+                                        </td>
+                                        <td style="padding:10px 16px; text-align:right"><strong>${(j.kilosRecolectados || 0).toLocaleString()}</strong> kg</td>
+                                        <td style="padding:10px 16px; text-align:right; font-weight:600; color:var(--color-primary)">$${(j.totalDia || 0).toLocaleString()}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     </div>
-                ` : ''}
 
-                <!-- Fiado -->
-                <div class="card-premium" style="background:var(--bg-app)!important; padding:16px; margin-bottom:24px; border:1px solid ${descontarFiado && d.deudaTotalFiado > 0 ? 'var(--color-danger)' : 'var(--border-color)'}; transition:all 0.2s">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <!-- Step Controls -->
+                    <div style="display:flex; justify-content:flex-end; margin-top:24px">
+                        <button class="btn-premium primary" style="padding:12px 24px" onclick="Pagos.changeWizardStep(2)">
+                            Siguiente: Deducciones Claras <i data-lucide="arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else if (d.wizardStep === 2) {
+            // STEP 2: DEDUCCIONES CLARAS
+            stepHtml = `
+                <div class="animate-in">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h4 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px">
+                            <i data-lucide="sliders" style="color:var(--color-primary)"></i> Paso 2: Exoneraciones & Ajuste de Descuentos
+                        </h4>
+                    </div>
+
+                    <!-- Live Summary Header -->
+                    <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:12px; padding:16px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <p style="font-weight:700; margin:0; display:flex; align-items:center; gap:8px"><i data-lucide="shopping-cart"></i> Deudas de Tienda</p>
-                            <p class="text-muted" style="font-size:0.8rem; margin:4px 0 0">
-                                ${d.deudaTotalFiado > 0 ? `${d.ventasFiadoPendiente.length} artículos comprados a crédito` : 'No registra compras pendientes'}
-                            </p>
+                            <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700">Neto Sugerido Reactivo</span>
+                            <h3 id="live-neto-sugerido" style="margin:4px 0 0; font-size:1.7rem; font-weight:800; color: ${netoAPagar >= 0 ? 'var(--color-primary)' : 'var(--color-danger)'}">$${netoAPagar.toLocaleString()}</h3>
                         </div>
-                        <div style="font-size:1.4rem; font-weight:800; color:var(--color-danger)">$${d.deudaTotalFiado.toLocaleString()}</div>
+                        <div style="text-align:right">
+                            <span style="font-size:0.75rem; color:var(--text-muted); display:block">Bruto: +$${d.totalGanado.toLocaleString()}</span>
+                            <span id="live-descuentos-total" style="font-size:0.75rem; color:var(--color-danger); display:block">Descuentos: -$${totalDescuentos.toLocaleString()}</span>
+                        </div>
                     </div>
 
-                    ${d.deudaTotalFiado > 0 ? `
-                        <label style="display:flex; align-items:center; gap:12px; cursor:pointer; padding:16px; background:var(--bg-surface); border-radius:var(--border-radius-sm); margin-top:16px; border:1px solid var(--border-color)">
-                            <input type="checkbox" id="pg-descontar-fiado" ${descontarFiado ? 'checked' : ''}
-                                onchange="Pagos._renderResultado(this.checked)"
-                                style="width:20px; height:20px; accent-color:var(--color-primary); cursor:pointer">
-                            <div>
-                                <span style="font-weight:600; display:block">Descontar saldo adeudado del pago final</span>
-                                <small class="text-muted" style="font-size:0.8rem">Se restarán $${d.deudaTotalFiado.toLocaleString()} de manera automática</small>
+                    <!-- Deducciones Grid / Container -->
+                    <div style="display:flex; flex-direction:column; gap:16px; margin-bottom:24px">
+                        
+                        <!-- 1. Comida Card -->
+                        <div class="card-premium deduccion-card ${d.descComidaActive ? 'active' : 'inactive'}" style="padding:16px; border-radius:12px">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                                <div style="display:flex; gap:12px; align-items:center">
+                                    <div style="width:36px; height:36px; border-radius:50%; background:rgba(239, 68, 68, 0.1); color:var(--color-danger); display:flex; align-items:center; justify-content:center"><i data-lucide="utensils" style="width:18px;height:18px"></i></div>
+                                    <div>
+                                        <h5 style="margin:0; font-size:0.95rem; font-weight:700">Alimentación / Comedor</h5>
+                                        <p class="text-muted" style="margin:2px 0 0; font-size:0.8rem">Acumulado en cocina por comida del obrero</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px">
+                                    <span style="font-size:1.15rem; font-weight:800; color:var(--color-danger)">-$${d.descComida.toLocaleString()}</span>
+                                    <label class="switch-premium">
+                                        <input type="checkbox" ${d.descComidaActive ? 'checked' : ''} onchange="Pagos.toggleDeduccion('comida', this.checked)">
+                                        <span class="slider-premium"></span>
+                                    </label>
+                                </div>
                             </div>
-                        </label>
-                    ` : ''}
-                </div>
-
-                <!-- Liquidación Summary -->
-                <div class="card-premium" style="background:var(--bg-surface-hover)!important; padding:20px; border-radius:var(--border-radius-md); margin-bottom:24px; border:1px solid var(--border-color)">
-                    <p style="font-weight:700; margin:0 0 16px; display:flex; align-items:center; gap:8px"><i data-lucide="file-check"></i> Cierre Contable Provisional</p>
-                    
-                    <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05)">
-                        <span class="text-muted">Haberes ganados</span>
-                        <span style="font-weight:600; color:var(--color-primary)">+$${d.totalGanado.toLocaleString()}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05)">
-                        <span class="text-muted">Descuento comedor</span>
-                        <span style="color:var(--color-danger)">-$${d.descComida.toLocaleString()}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05)">
-                        <span class="text-muted">Tienda/Préstamos  ${descontarFiado ? '<i data-lucide="check" style="width:14px;height:14px;color:var(--color-primary);vertical-align:middle;display:inline-block;margin-left:4px"></i>' : ''}</span>
-                        <span style="color:var(--color-danger)">-$${descCaja.toLocaleString()}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; padding:16px 0 0; font-size:1.3rem; font-weight:800">
-                        <span>NETO A DEPOSITAR</span>
-                        <span style="color:${netoAPagar >= 0 ? 'var(--text-main)' : 'var(--color-danger)'}">$${netoAPagar.toLocaleString()}</span>
-                    </div>
-                </div>
-
-                ${d.pagosSolapados && d.pagosSolapados.length > 0 ? `
-                <div class="card-premium" style="background:rgba(239, 68, 68, 0.1)!important; border:1px solid var(--color-danger)!important; padding:16px; margin-bottom:24px">
-                    <p style="font-weight:700; color:var(--color-danger); margin:0 0 8px; display:flex; align-items:center; gap:8px"><i data-lucide="alert-triangle"></i> Cruce de Fechas Detectado</p>
-                    <p class="text-muted" style="font-size:0.85rem; margin:0 0 12px">Este trabajador ya tiene pagos asentados que cruzan estas mismas fechas.</p>
-                    ${d.pagosSolapados.map(p => `
-                        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(239,68,68,0.2); font-size:0.85rem">
-                            <span><i data-lucide="calendar" style="width:12px;height:12px;vertical-align:-1px;margin-right:4px"></i> ${p.fechaInicio} al ${p.fechaFin}</span>
-                            <span style="font-weight:700; color:var(--text-main)">$${(p.netoAPagar || 0).toLocaleString()}</span>
+                            ${d.descComidaActive && d.comidas.length > 0 ? `
+                                <div style="margin-top:12px; border-top:1px solid var(--border-color); padding-top:12px; max-height:120px; overflow-y:auto;">
+                                    <table style="width:100%; font-size:0.8rem">
+                                        <tbody>
+                                            ${d.comidas.map(c => `
+                                                <tr>
+                                                    <td style="padding:4px 0; color:var(--text-muted)">${c.fecha} &middot; ${c.tipo}</td>
+                                                    <td style="padding:4px 0; text-align:right; font-weight:600; color:var(--color-danger)">-$${(c.valor || 0).toLocaleString()}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : ''}
                         </div>
-                    `).join('')}
-                </div>
-                ` : ''}
 
-                ${!d.pagosSolapados || d.pagosSolapados.length === 0 ? `
-                <div class="input-group" style="margin-bottom:24px">
-                    <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:8px">Modalidad de Desembolso</label>
-                    <select class="input-premium" id="pg-metodo-pago">
-                        <option value="efectivo">Efectivo 💵</option>
-                        <option value="transferencia">Bancos / Transferencia 🏦</option>
-                    </select>
-                </div>
-                ` : ''}
+                        <!-- 2. Tienda Card -->
+                        <div class="card-premium deduccion-card ${d.descTiendaActive ? 'active' : 'inactive'}" style="padding:16px; border-radius:12px">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                                <div style="display:flex; gap:12px; align-items:center">
+                                    <div style="width:36px; height:36px; border-radius:50%; background:rgba(239, 68, 68, 0.1); color:var(--color-danger); display:flex; align-items:center; justify-content:center"><i data-lucide="shopping-basket" style="width:18px;height:18px"></i></div>
+                                    <div>
+                                        <h5 style="margin:0; font-size:0.95rem; font-weight:700">Fiados de Tienda (Créditos)</h5>
+                                        <p class="text-muted" style="margin:2px 0 0; font-size:0.8rem">Compras y anticipos del almacén de la finca</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px">
+                                    <span style="font-size:1.15rem; font-weight:800; color:var(--color-danger)">-$${d.deudaTotalFiado.toLocaleString()}</span>
+                                    <label class="switch-premium">
+                                        <input type="checkbox" ${d.descTiendaActive ? 'checked' : ''} onchange="Pagos.toggleDeduccion('tienda', this.checked)">
+                                        <span class="slider-premium"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            ${d.descTiendaActive && d.ventasFiadoPendiente.length > 0 ? `
+                                <div style="margin-top:12px; border-top:1px solid var(--border-color); padding-top:12px; max-height:120px; overflow-y:auto;">
+                                    <table style="width:100%; font-size:0.8rem">
+                                        <tbody>
+                                            ${d.ventasFiadoPendiente.map(v => `
+                                                <tr>
+                                                    <td style="padding:4px 0; color:var(--text-muted)">${v.fecha || 'N/A'} &middot; Venta #${v.id}</td>
+                                                    <td style="padding:4px 0; text-align:right; font-weight:600; color:var(--color-danger)">-$${(v.valorTotal || 0).toLocaleString()}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : ''}
+                        </div>
 
-                <div class="btn-group" style="display:flex; gap:12px;">
-                    <button class="btn-premium secondary flex-1" onclick="Pagos.generarRecibo(${descontarFiado})">
-                        <i data-lucide="receipt"></i> Previsualizar Recibo
-                    </button>
-                    <button class="btn-premium flex-1" style="background:var(--color-primary); color:#fff; border:none" onclick="Pagos.confirmarPago(${descontarFiado})"
-                        ${d.pagosSolapados && d.pagosSolapados.length > 0 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
-                        ${d.pagosSolapados && d.pagosSolapados.length > 0 ? '<i data-lucide="lock"></i> Pagado' : '<i data-lucide="check-circle"></i> Confirmar Pago'}
-                    </button>
+                        <!-- 3. Transporte Card -->
+                        <div class="card-premium deduccion-card ${d.descTransporteActive ? 'active' : 'inactive'}" style="padding:16px; border-radius:12px">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                                <div style="display:flex; gap:12px; align-items:center">
+                                    <div style="width:36px; height:36px; border-radius:50%; background:rgba(239, 68, 68, 0.1); color:var(--color-danger); display:flex; align-items:center; justify-content:center"><i data-lucide="truck" style="width:18px;height:18px"></i></div>
+                                    <div>
+                                        <h5 style="margin:0; font-size:0.95rem; font-weight:700">Flete de Transporte</h5>
+                                        <p class="text-muted" style="margin:2px 0 0; font-size:0.8rem">Deducción extraordinaria por fletes/viajes</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px">
+                                    <span style="font-size:1.15rem; font-weight:800; color:var(--color-danger)">-$${d.descTransporteValor.toLocaleString()}</span>
+                                    <label class="switch-premium">
+                                        <input type="checkbox" ${d.descTransporteActive ? 'checked' : ''} onchange="Pagos.toggleDeduccion('transporte', this.checked)">
+                                        <span class="slider-premium"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top:12px; display: ${d.descTransporteActive ? 'block' : 'none'}; border-top:1px solid var(--border-color); padding-top:12px;">
+                                <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px">Ingrese el valor del flete ($)</label>
+                                <input type="number" class="input-premium" style="padding:8px 12px; width:100%" placeholder="0" value="${d.descTransporteValor || ''}" oninput="Pagos.updateFleteValor(this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step Controls -->
+                    <div style="display:flex; justify-content:space-between; margin-top:24px; gap:12px">
+                        <button class="btn-premium secondary flex-1" onclick="Pagos.changeWizardStep(1)">
+                            <i data-lucide="arrow-left"></i> Atrás: Rendimiento
+                        </button>
+                        <button class="btn-premium primary flex-1" onclick="Pagos.changeWizardStep(3)">
+                            Siguiente: Finalizar Pago <i data-lucide="arrow-right"></i>
+                        </button>
+                    </div>
                 </div>
+            `;
+        } else if (d.wizardStep === 3) {
+            // STEP 3: NETO REAL & DESPACHO
+            stepHtml = `
+                <div class="animate-in">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h4 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px">
+                            <i data-lucide="check-square" style="color:var(--color-primary)"></i> Paso 3: Cierre de Liquidación & Desembolso
+                        </h4>
+                    </div>
+
+                    <!-- Grand Neto Real Display -->
+                    <div class="card-premium" style="background:var(--bg-surface-hover)!important; border-radius:16px; border:2px solid ${netoAPagar >= 0 ? 'var(--color-primary)' : 'var(--color-danger)'}; padding:32px; text-align:center; margin-bottom:24px">
+                        <span style="font-size:0.8rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); letter-spacing:0.05em">NETO TOTAL LIQUIDADO</span>
+                        <h1 style="font-size:3.5rem; font-weight:900; color:${netoAPagar >= 0 ? 'var(--color-primary)' : 'var(--color-danger)'}; margin:12px 0">$${netoAPagar.toLocaleString()}</h1>
+                        <p style="margin:0 0 20px; font-size:0.9rem; color:var(--text-muted)">
+                            Resumen final del desembolso a favor de <strong>${d.obrero.nombre}</strong>.
+                        </p>
+
+                        <!-- Modalidad Selector in step 3 -->
+                        <div style="max-width:300px; margin: 0 auto; text-align:left">
+                            <label class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600;display:block;margin-bottom:6px">Modalidad de Desembolso</label>
+                            <select class="input-premium" id="pg-metodo-pago" style="padding:8px 12px; width:100%">
+                                <option value="efectivo">Efectivo 💵</option>
+                                <option value="transferencia">Bancos / Transferencia 🏦</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Final Breakdown Invoice Card -->
+                    <div class="card-premium" style="background:var(--bg-app)!important; padding:16px; margin-bottom:24px; border:1px solid var(--border-color); border-radius:12px">
+                        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-color)">
+                            <span class="text-muted">Total Cosecha Bruta (+):</span>
+                            <span style="font-weight:700; color:var(--color-primary)">+$${d.totalGanado.toLocaleString()}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-color); opacity: ${d.descComidaActive ? '1' : '0.4'}">
+                            <span class="text-muted">Alimentación / Comedor (-):</span>
+                            <span style="font-weight:600; color:var(--color-danger)">-${d.descComidaActive ? `$${d.descComida.toLocaleString()}` : '$0 (Exonerado)'}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-color); opacity: ${d.descTiendaActive ? '1' : '0.4'}">
+                            <span class="text-muted">Fiados de Tienda (-):</span>
+                            <span style="font-weight:600; color:var(--color-danger)">-${d.descTiendaActive ? `$${d.deudaTotalFiado.toLocaleString()}` : '$0 (Exonerado)'}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-color); opacity: ${d.descTransporteActive ? '1' : '0.4'}">
+                            <span class="text-muted">Flete de Transporte (-):</span>
+                            <span style="font-weight:600; color:var(--color-danger)">-${d.descTransporteActive ? `$${d.descTransporteValor.toLocaleString()}` : '$0'}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:12px 0 0; font-size:1.25rem; font-weight:900">
+                            <span>NETO REAL FINAL:</span>
+                            <span>$${netoAPagar.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <!-- Date Overlap Check warnings (if d.pagosSolapados has items) -->
+                    ${d.pagosSolapados && d.pagosSolapados.length > 0 ? `
+                        <div class="card-premium" style="background:rgba(239, 68, 68, 0.1)!important; border:1px solid var(--color-danger)!important; padding:16px; margin-bottom:24px">
+                            <p style="font-weight:700; color:var(--color-danger); margin:0 0 8px; display:flex; align-items:center; gap:8px"><i data-lucide="alert-triangle"></i> Cruce de Fechas Detectado</p>
+                            <p class="text-muted" style="font-size:0.85rem; margin:0 0 12px">Este trabajador ya tiene pagos asentados que cruzan estas mismas fechas.</p>
+                            ${d.pagosSolapados.map(p => `
+                                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(239,68,68,0.2); font-size:0.85rem">
+                                    <span><i data-lucide="calendar" style="width:12px;height:12px;vertical-align:-1px;margin-right:4px"></i> ${p.fechaInicio} al ${p.fechaFin}</span>
+                                    <span style="font-weight:700; color:var(--text-main)">$${(p.netoAPagar || 0).toLocaleString()}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    <!-- Action Dispatches Buttons Group -->
+                    <div style="display:flex; flex-wrap:wrap; gap:12px;">
+                        <button class="btn-premium secondary flex-1" style="min-width:140px" onclick="Pagos.changeWizardStep(2)">
+                            <i data-lucide="arrow-left"></i> Deducciones
+                        </button>
+                        
+                        <button class="btn-premium secondary flex-1" style="min-width:140px" onclick="Pagos.imprimirReciboPDFWizard()">
+                            <i data-lucide="printer"></i> Recibo (PDF)
+                        </button>
+                        
+                        <button class="btn-premium flex-1" style="min-width:140px; background:#25D366; color:#fff; border:none" onclick="Pagos.compartirWhatsAppWizard()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px; display:inline-block; vertical-align:middle"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                            WhatsApp
+                        </button>
+
+                        <button class="btn-premium flex-1" style="min-width:180px; background:var(--color-primary); color:#fff; border:none" onclick="Pagos.confirmarPagoWizard()"
+                            ${d.pagosSolapados && d.pagosSolapados.length > 0 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
+                            ${d.pagosSolapados && d.pagosSolapados.length > 0 ? '<i data-lucide="lock"></i> Solapado' : '<i data-lucide="check-circle"></i> Asentar Pago'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = `
+            <!-- Switch CSS styles -->
+            <style>
+                .switch-premium {
+                    position: relative;
+                    display: inline-block;
+                    width: 46px;
+                    height: 24px;
+                }
+                .switch-premium input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+                .slider-premium {
+                    position: absolute;
+                    cursor: pointer;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background-color: var(--border-color);
+                    transition: .3s;
+                    border-radius: 24px;
+                }
+                .slider-premium:before {
+                    position: absolute;
+                    content: "";
+                    height: 18px;
+                    width: 18px;
+                    left: 3px;
+                    bottom: 3px;
+                    background-color: #fff;
+                    transition: .3s;
+                    border-radius: 50%;
+                }
+                .switch-premium input:checked + .slider-premium {
+                    background-color: var(--color-primary);
+                }
+                .switch-premium input:checked + .slider-premium:before {
+                    transform: translateX(22px);
+                }
+                .deduccion-card {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    border: 1px solid var(--border-color);
+                }
+                .deduccion-card.active {
+                    border-color: var(--color-danger);
+                    background: rgba(239, 68, 68, 0.02);
+                    box-shadow: var(--shadow-sm);
+                }
+                .deduccion-card.inactive {
+                    opacity: 0.6;
+                    background: var(--bg-app);
+                    border-color: var(--border-color);
+                }
+            </style>
+
+            <div class="card-premium mb-2 animate-in tabular-data" style="padding:24px;">
+                <!-- Main Header with Obrero Name -->
+                <div class="header-premium" style="margin-bottom:20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px">
+                    <div class="header-icon" style="background:rgba(22, 163, 74, 0.1); color:var(--color-primary)"><i data-lucide="user-check"></i></div>
+                    <div>
+                        <h3 style="margin:0; font-size:1.2rem; font-weight:800">${d.obrero.nombre}</h3>
+                        <p class="text-muted" style="font-size:0.85rem; margin:2px 0 0">
+                            Cédula: <strong>${d.obrero.cedula || 'N/A'}</strong> &middot; Liquidando del <strong>${d.fechaInicio}</strong> al <strong>${d.fechaFin}</strong>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Step Progress Bar Indicator -->
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; padding:12px 16px; background:var(--bg-surface-hover); border-radius:30px; border:1px solid var(--border-color);">
+                    <div style="display:flex; align-items:center; gap:8px; opacity: ${d.wizardStep === 1 ? '1' : '0.5'}; font-weight: ${d.wizardStep === 1 ? '700' : '400'}; color: ${d.wizardStep === 1 ? 'var(--color-primary)' : 'var(--text-muted)'}">
+                        <span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:${d.wizardStep === 1 ? 'var(--color-primary)' : 'var(--border-color)'}; color:${d.wizardStep === 1 ? '#fff' : 'var(--text-muted)'}; font-size:0.8rem; font-weight:700">1</span>
+                        <span style="font-size:0.8rem;">Rendimiento</span>
+                    </div>
+                    <div style="flex:1; height:2px; background:var(--border-color); margin:0 8px; min-width:10px"></div>
+                    
+                    <div style="display:flex; align-items:center; gap:8px; opacity: ${d.wizardStep === 2 ? '1' : '0.5'}; font-weight: ${d.wizardStep === 2 ? '700' : '400'}; color: ${d.wizardStep === 2 ? 'var(--color-primary)' : 'var(--text-muted)'}">
+                        <span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:${d.wizardStep === 2 ? 'var(--color-primary)' : 'var(--border-color)'}; color:${d.wizardStep === 2 ? '#fff' : 'var(--text-muted)'}; font-size:0.8rem; font-weight:700">2</span>
+                        <span style="font-size:0.8rem">Deducciones</span>
+                    </div>
+                    <div style="flex:1; height:2px; background:var(--border-color); margin:0 8px; min-width:10px"></div>
+                    
+                    <div style="display:flex; align-items:center; gap:8px; opacity: ${d.wizardStep === 3 ? '1' : '0.5'}; font-weight: ${d.wizardStep === 3 ? '700' : '400'}; color: ${d.wizardStep === 3 ? 'var(--color-primary)' : 'var(--text-muted)'}">
+                        <span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:${d.wizardStep === 3 ? 'var(--color-primary)' : 'var(--border-color)'}; color:${d.wizardStep === 3 ? '#fff' : 'var(--text-muted)'}; font-size:0.8rem; font-weight:700">3</span>
+                        <span style="font-size:0.8rem">Neto Real</span>
+                    </div>
+                </div>
+
+                <!-- Dynamic Step Content -->
+                ${stepHtml}
             </div>
         `;
+
         if (window.lucide) window.lucide.createIcons();
     },
 
-    async confirmarPago(descontarFiado) {
+    changeWizardStep(step) {
         const d = Pagos._liquidacion;
         if (!d) return;
 
-        const descCaja = descontarFiado ? d.deudaTotalFiado : d.descCajaPeriodo;
-        const netoAPagar = d.totalGanado - d.descComida - descCaja;
+        if (step === 3) {
+            if (d.descTransporteActive && (isNaN(d.descTransporteValor) || d.descTransporteValor < 0)) {
+                return App.toast('Por favor ingrese un valor de flete válido', 'error');
+            }
+        }
+
+        d.wizardStep = step;
+        Pagos._renderResultado();
+    },
+
+    toggleDeduccion(type, active) {
+        const d = Pagos._liquidacion;
+        if (!d) return;
+
+        if (type === 'comida') {
+            d.descComidaActive = active;
+        } else if (type === 'tienda') {
+            d.descTiendaActive = active;
+        } else if (type === 'transporte') {
+            d.descTransporteActive = active;
+            if (!active) d.descTransporteValor = 0;
+        }
+
+        Pagos._renderResultado();
+    },
+
+    updateFleteValor(val) {
+        const d = Pagos._liquidacion;
+        if (!d) return;
+
+        const value = parseFloat(val);
+        d.descTransporteValor = isNaN(value) ? 0 : value;
+
+        // Reactive live summary calculation
+        const descComida = d.descComidaActive ? d.descComida : 0;
+        const descCaja = d.descTiendaActive ? d.deudaTotalFiado : 0;
+        const descTransporte = d.descTransporteActive ? d.descTransporteValor : 0;
+        const netoAPagar = d.totalGanado - descComida - descCaja - descTransporte;
+        const totalDescuentos = descComida + descCaja + descTransporte;
+
+        const netoEl = document.getElementById('live-neto-sugerido');
+        const descEl = document.getElementById('live-descuentos-total');
+        if (netoEl) {
+            netoEl.innerText = `$${netoAPagar.toLocaleString()}`;
+            netoEl.style.color = netoAPagar >= 0 ? 'var(--color-primary)' : 'var(--color-danger)';
+        }
+        if (descEl) {
+            descEl.innerText = `Descuentos: -$${totalDescuentos.toLocaleString()}`;
+        }
+    },
+
+    async confirmarPagoWizard() {
+        const d = Pagos._liquidacion;
+        if (!d) return;
+
+        const descComida = d.descComidaActive ? d.descComida : 0;
+        const descCaja = d.descTiendaActive ? d.deudaTotalFiado : 0;
+        const descTransporte = d.descTransporteActive ? d.descTransporteValor : 0;
+        const netoAPagar = d.totalGanado - descComida - descCaja - descTransporte;
 
         if (netoAPagar < 0) {
             return App.alert({
@@ -734,7 +1037,6 @@ const Pagos = {
 
         const metodoPago = document.getElementById('pg-metodo-pago')?.value || 'efectivo';
 
-        // Custom Modal Confirm to use design system
         App.confirm({
             title: 'Emitir Comprobante',
             message: `Vas a registrar un pago definitivo en cuenta por <strong style="color:var(--color-primary)">$${netoAPagar.toLocaleString()}</strong> usando modalidad de <strong>${metodoPago}</strong>.`,
@@ -750,19 +1052,20 @@ const Pagos = {
                     fechaInicio: d.fechaInicio,
                     fechaFin: d.fechaFin,
                     totalGanado: d.totalGanado,
-                    descComida: d.descComida,
+                    descComida,
                     descCaja,
+                    descTransporte,
                     netoAPagar,
                     estado: 'pagado',
                     metodoPago,
-                    fiadoDescontado: descontarFiado,
+                    fiadoDescontado: d.descTiendaActive,
                     createdAt: Date.now(),
                     fechaPago: new Date().toLocaleDateString('en-CA'),
                     fincaId: db.getFincaActiva(),
                     cicloId: d.cicloId || null
                 });
 
-                if (descontarFiado && d.ventasFiadoPendiente.length > 0) {
+                if (d.descTiendaActive && d.ventasFiadoPendiente.length > 0) {
                     for (const v of d.ventasFiadoPendiente) {
                         v.pagado = true;
                         v.fechaPago = new Date().toLocaleDateString('en-CA');
@@ -776,6 +1079,157 @@ const Pagos = {
                 Pagos.loadHistorial();
             }
         });
+    },
+
+    imprimirReciboPDFWizard() {
+        const d = Pagos._liquidacion;
+        if (!d) return;
+
+        const descComida = d.descComidaActive ? d.descComida : 0;
+        const descCaja = d.descTiendaActive ? d.deudaTotalFiado : 0;
+        const descTransporte = d.descTransporteActive ? d.descTransporteValor : 0;
+        const neto = d.totalGanado - descComida - descCaja - descTransporte;
+
+        const html = `
+            <div class="modal-system-overlay print-receipt-modal" onclick="Pagos.closeModal(event)" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <div class="card-premium animate-in tabular-data printable-ticket" onclick="event.stopPropagation()" style="width:100%; max-width:420px; padding:24px; background:var(--bg-surface)">
+                    
+                    <div class="header-premium no-print" style="margin-bottom:24px;">
+                        <div class="header-icon" style="background:var(--bg-app); color:var(--text-main)"><i data-lucide="receipt"></i></div>
+                        <div style="flex:1">
+                            <h3 style="margin:0; font-size:1.1rem">Recibo de Liquidación</h3>
+                            <div style="font-family:monospace; color:var(--text-muted); font-size:0.8rem; margin-top:4px">COMPROBANTE DE PAGO</div>
+                        </div>
+                        <button class="btn-icon-only" onclick="Pagos.closeModal()" style="border:none; background:transparent"><i data-lucide="x"></i></button>
+                    </div>
+                    
+                    <div class="print-content" style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:20px; margin-bottom:24px">
+                        <div style="text-align:center; margin-bottom:16px; border-bottom:1px dashed var(--border-color); padding-bottom:16px">
+                            <h2 style="margin:0 0 4px; color:var(--text-main); font-size:1.5rem; font-weight:800">CaféControl</h2>
+                            <p class="text-muted" style="margin:0; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em">Recibo de Pago Obrero</p>
+                        </div>
+                        
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem">
+                            <span class="text-muted">Obrero:</span>
+                            <span style="font-weight:700; color:var(--text-main)">${d.obrero.nombre}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem">
+                            <span class="text-muted">Cédula:</span>
+                            <span>${d.obrero.cedula || 'N/A'}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem">
+                            <span class="text-muted">Período:</span>
+                            <span>${d.fechaInicio} al ${d.fechaFin}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:16px; font-size:0.9rem">
+                            <span class="text-muted">Total Cosechado:</span>
+                            <span style="font-weight:600">${d.totalKilos.toLocaleString()} kg</span>
+                        </div>
+                        
+                        <div style="border-top:1px dashed var(--border-color); padding-top:16px; margin-bottom:16px">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem">
+                                <span class="text-muted">Ingresos Brutos (+):</span>
+                                <span style="font-weight:600; color:var(--color-primary)">$${d.totalGanado.toLocaleString()}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem; opacity: ${d.descComidaActive ? '1' : '0.5'}">
+                                <span class="text-muted">Desc. Alimentación (-):</span>
+                                <span style="color:var(--color-danger)">-${d.descComidaActive ? `$${d.descComida.toLocaleString()}` : '$0'}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem; opacity: ${d.descTiendaActive ? '1' : '0.5'}">
+                                <span class="text-muted">Desc. Tienda/Caja (-):</span>
+                                <span style="color:var(--color-danger)">-${d.descTiendaActive ? `$${d.deudaTotalFiado.toLocaleString()}` : '$0'}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem; opacity: ${d.descTransporteActive ? '1' : '0.5'}">
+                                <span class="text-muted">Desc. Flete (-):</span>
+                                <span style="color:var(--color-danger)">-${d.descTransporteActive ? `$${d.descTransporteValor.toLocaleString()}` : '$0'}</span>
+                            </div>
+                        </div>
+                        
+                        <div style="border-top:2px solid var(--border-color); padding-top:12px">
+                            <div style="display:flex; justify-content:space-between; align-items:center">
+                                <span style="font-weight:800; font-size:1.1rem; color:var(--text-main)">NETO A DEPOSITAR</span>
+                                <span style="font-weight:900; font-size:1.4rem; color:var(--color-primary)">$${neto.toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:32px; border-top:1px solid var(--border-color); padding-top:16px; text-align:center">
+                            <div style="height:48px; border-bottom:1px solid var(--border-color); width:200px; margin: 0 auto"></div>
+                            <p style="font-size:0.75rem; color:var(--text-muted); margin:4px 0 0">Firma del Obrero</p>
+                        </div>
+                        
+                        <p class="text-muted" style="text-align:center; font-size:0.75rem; margin:24px 0 0">Generado por CaféControl &middot; ${new Date().toLocaleDateString('en-CA')}</p>
+                    </div>
+
+                    <div class="btn-group no-print" style="display:flex; gap:12px;">
+                        <button class="btn-premium secondary flex-1" onclick="window.print()">
+                            <i data-lucide="printer"></i> Imprimir
+                        </button>
+                        <button class="btn-premium flex-1" style="background:var(--color-primary); color:#fff; border:none" onclick="Pagos.closeModal()">
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <style>
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    .printable-ticket, .printable-ticket * {
+                        visibility: visible;
+                    }
+                    .printable-ticket {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        border: none !important;
+                        background: white !important;
+                        color: black !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                    .print-content {
+                        border: none !important;
+                        background: transparent !important;
+                        padding: 0 !important;
+                    }
+                }
+            </style>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    compartirWhatsAppWizard() {
+        const d = Pagos._liquidacion;
+        if (!d) return;
+
+        const descComida = d.descComidaActive ? d.descComida : 0;
+        const descCaja = d.descTiendaActive ? d.deudaTotalFiado : 0;
+        const descTransporte = d.descTransporteActive ? d.descTransporteValor : 0;
+        const neto = d.totalGanado - descComida - descCaja - descTransporte;
+
+        const msg = encodeURIComponent(
+            `📄 *RECIBO DE NÓMINA | CaféControl* 🌾\n\n` +
+            `👤 *Trabajador:* ${d.obrero.nombre}\n` +
+            `🗓️ *Período:* ${d.fechaInicio} al ${d.fechaFin}\n` +
+            `⚖️ *Total Cosechado:* ${d.totalKilos.toLocaleString()} kg\n\n` +
+            `===========================\n` +
+            `➕ *Ganancia Bruta:* $${d.totalGanado.toLocaleString()}\n` +
+            `➖ *Descuento Comedor:* -${d.descComidaActive ? `$${d.descComida.toLocaleString()}` : '$0 (Exonerado)'}\n` +
+            `➖ *Descuento Tienda:* -${d.descTiendaActive ? `$${d.deudaTotalFiado.toLocaleString()}` : '$0 (Exonerado)'}\n` +
+            `➖ *Descuento Flete:* -${d.descTransporteActive ? `$${d.descTransporteValor.toLocaleString()}` : '$0'}\n` +
+            `===========================\n\n` +
+            `💰 *NETO A RECIBIR: $${neto.toLocaleString()}* 💵\n\n` +
+            `*CaféControl* - Finca Familiar ☕`
+        );
+        window.open(`https://wa.me/?text=${msg}`, '_blank');
     },
 
     generarRecibo(descontarFiado) {
@@ -896,7 +1350,12 @@ const Pagos = {
             descComida: pago.descComida,
             descCajaPeriodo: pago.descCaja,
             deudaTotalFiado: pago.descCaja,
-            ventasFiadoPendiente: []
+            ventasFiadoPendiente: [],
+            // wizard compatibility
+            descComidaActive: pago.descComida > 0,
+            descTiendaActive: pago.descCaja > 0,
+            descTransporteActive: false,
+            descTransporteValor: 0
         };
 
         Pagos.generarRecibo(true);
@@ -919,7 +1378,7 @@ const Pagos = {
                         <td style="padding:12px 16px; font-weight:600">${obMap[p.obreroId] || '?'}</td>
                         <td style="padding:12px 16px; font-size:0.85rem; color:var(--text-muted)">${p.fechaInicio} &rarr; ${p.fechaFin}</td>
                         <td style="padding:12px 16px; text-align:right" class="${p.estado === 'anulado' ? 'text-muted' : ''}"><span style="color:var(--color-primary)">$${(p.totalGanado || 0).toLocaleString()}</span></td>
-                        <td style="padding:12px 16px; text-align:right" class="${p.estado === 'anulado' ? 'text-muted' : ''}"><span style="color:var(--color-danger)">$${((p.descComida || 0) + (p.descCaja || 0)).toLocaleString()}</span></td>
+                        <td style="padding:12px 16px; text-align:right" class="${p.estado === 'anulado' ? 'text-muted' : ''}"><span style="color:var(--color-danger)">$${((p.descComida || 0) + (p.descCaja || 0) + (p.descTransporte || 0)).toLocaleString()}</span></td>
                         <td style="padding:12px 16px; text-align:right; font-weight:700; font-size:1.05rem; text-decoration:${p.estado === 'anulado' ? 'line-through' : 'none'}; color:${p.estado === 'anulado' ? 'var(--text-muted)' : 'var(--text-main)'}">$${(p.netoAPagar || 0).toLocaleString()}</td>
                         <td style="padding:12px 16px; text-align:center">
                             ${p.estado === 'anulado'

@@ -39,10 +39,12 @@ const Obreros = {
                     </button>
                 </div>
 
+                ${this.activeTab !== 'expediente' ? `
                 <div class="search-box mb-2" style="position:relative; margin-bottom:16px;">
                     <i data-lucide="search" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); width:20px; height:20px"></i>
                     <input type="text" class="input-premium" id="search-obreros" placeholder="Buscar por nombre o documento..." oninput="Obreros.filter(this.value)" style="padding-left:48px;">
                 </div>
+                ` : ''}
 
                 <div class="tabs mb-2" style="display:flex; gap:8px; margin-bottom:24px;">
                     <button class="btn-premium ${this.activeTab === 'activos' ? 'primary' : 'secondary'} flex-1" onclick="Obreros.switchTab('activos')">
@@ -51,17 +53,25 @@ const Obreros = {
                     <button class="btn-premium ${this.activeTab === 'inactivos' ? 'primary' : 'secondary'} flex-1" onclick="Obreros.switchTab('inactivos')">
                         <i data-lucide="user-minus"></i> Inactivos (${inactivos.length})
                     </button>
+                    <button class="btn-premium ${this.activeTab === 'expediente' ? 'primary' : 'secondary'} flex-1" onclick="Obreros.switchTab('expediente')">
+                        <i data-lucide="folder-heart"></i> Expediente Único
+                    </button>
                 </div>
 
                 <div id="obreros-list">
                     ${this.activeTab === 'activos'
                 ? (activos.length === 0 ? '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="users" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px"></i>No hay obreros activos.</div>' : activos.map(o => Obreros.renderItem(o)).join(''))
-                : (inactivos.length === 0 ? '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="users" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px"></i>No hay obreros inactivos.</div>' : inactivos.map(o => Obreros.renderItem(o)).join(''))
+                : this.activeTab === 'inactivos'
+                ? (inactivos.length === 0 ? '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)"><i data-lucide="users" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px"></i>No hay obreros inactivos.</div>' : inactivos.map(o => Obreros.renderItem(o)).join(''))
+                : ''
             }
                 </div>
             </div>
         `;
         if (window.lucide) window.lucide.createIcons();
+        if (this.activeTab === 'expediente') {
+            await Obreros.renderExpedienteInterface(document.getElementById('obreros-list'));
+        }
     },
 
     switchTab(tab) {
@@ -592,6 +602,376 @@ const Obreros = {
         doc.text('Sistema PWA Offline', 15, finalY + 10);
 
         doc.save(`Historial_${d.obrero.nombre.replace(/\\s+/g, '_')}_${new Date().toLocaleDateString('en-CA')}.pdf`);
+    },
+
+    async renderExpedienteInterface(container) {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="card-premium mb-2 animate-in" style="position:relative; margin-bottom:16px;">
+                <label class="text-muted" style="font-size:0.8rem;text-transform:uppercase;font-weight:700;display:block;margin-bottom:8px">Buscar Trabajador para su Expediente</label>
+                <div style="position:relative;">
+                    <i data-lucide="search" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); width:20px; height:20px"></i>
+                    <input type="text" class="input-premium" id="exp-search-worker" placeholder="Escribe el nombre o documento..." oninput="Obreros.buscarObreroExpediente(this.value)" style="padding-left:48px; min-height:48px; font-size:1.05rem;">
+                </div>
+                
+                <!-- Dropdown Flotante Táctil -->
+                <div id="exp-search-results" class="card-premium" style="display:none; position:absolute; left:0; right:0; top:100%; z-index:100; max-height:250px; overflow-y:auto; margin-top:6px; padding:0; box-shadow:var(--shadow-lg);"></div>
+            </div>
+
+            <div id="exp-details-container">
+                <div class="empty-state card-premium" style="padding:48px; text-align:center; color:var(--text-muted);">
+                    <i data-lucide="folder-search" style="width:48px;height:48px;opacity:0.2;margin:0 auto 16px;display:block"></i>
+                    <h3>Expediente de Personal</h3>
+                    <p>Busca y selecciona un obrero para ver su historial, mapa de rendimiento contable y desglose diario.</p>
+                </div>
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    async buscarObreroExpediente(query) {
+        const resultsEl = document.getElementById('exp-search-results');
+        if (!resultsEl) return;
+        const q = query.trim().toLowerCase();
+        if (!q) {
+            resultsEl.style.display = 'none';
+            return;
+        }
+
+        const obreros = await db.getByFinca('obreros');
+        const filtered = obreros.filter(o => 
+            o.nombre.toLowerCase().includes(q) || 
+            (o.documento && o.documento.includes(q))
+        );
+
+        if (filtered.length === 0) {
+            resultsEl.innerHTML = `
+                <div style="padding:16px; text-align:center; color:var(--text-muted); font-size:0.9rem;">
+                    No se encontraron resultados para "${query}"
+                </div>
+            `;
+        } else {
+            resultsEl.innerHTML = filtered.map(o => `
+                <div class="worker-row-premium" onclick="Obreros.seleccionarObreroExpediente(${o.id})" 
+                     style="padding:14px 16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); transition:background 0.2s; background:var(--bg-card);"
+                     onmouseover="this.style.background='var(--bg-surface-hover)'" onmouseout="this.style.background='var(--bg-card)'">
+                    <div style="display:flex; align-items:center; gap:12px">
+                        <div style="background:rgba(34, 197, 94, 0.1); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--color-primary); font-weight:700; font-size:0.85rem">
+                            ${o.nombre.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <strong style="font-size:0.95rem; color:var(--text-main); display:block">${o.nombre}</strong>
+                            <small class="text-muted" style="font-size:0.75rem">Doc: ${o.documento || 'N/A'}</small>
+                        </div>
+                    </div>
+                    <span class="badge ${o.estado === 'activo' ? 'badge-active' : ''}" style="font-size:0.65rem">${o.estado}</span>
+                </div>
+            `).join('');
+        }
+        resultsEl.style.display = 'block';
+    },
+
+    async seleccionarObreroExpediente(obreroId) {
+        const resultsEl = document.getElementById('exp-search-results');
+        if (resultsEl) resultsEl.style.display = 'none';
+
+        const inputSearch = document.getElementById('exp-search-worker');
+        
+        const obrero = await db.get('obreros', obreroId);
+        if (!obrero) return;
+        if (inputSearch) inputSearch.value = obrero.nombre;
+
+        const now = new Date();
+        Obreros._expActiveWorker = obrero;
+        Obreros._expActiveYear = now.getFullYear();
+        Obreros._expActiveMonth = now.getMonth();
+
+        await Obreros.renderExpedienteDetalles();
+    },
+
+    async renderExpedienteDetalles() {
+        const container = document.getElementById('exp-details-container');
+        if (!container || !Obreros._expActiveWorker) return;
+
+        const o = Obreros._expActiveWorker;
+        const year = Obreros._expActiveYear;
+        const month = Obreros._expActiveMonth;
+
+        const jornalesAll = await db.getAllByIndex('jornales', 'obreroId', o.id);
+        const comidasAll = await db.getAllByIndex('comida', 'obreroId', o.id);
+        const ventasAll = await db.getAllByIndex('ventasCaja', 'obreroId', o.id);
+        const pagosAll = await db.getAllByIndex('pagos', 'obreroId', o.id);
+
+        const totalKilos = jornalesAll.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+        const totalGanado = jornalesAll.reduce((s, j) => s + (j.totalDia || 0), 0);
+        const totalComidasVal = comidasAll.reduce((s, c) => s + (c.valor || 0), 0);
+        const totalCajaVal = ventasAll.filter(v => v.fiado).reduce((s, v) => s + (v.valorTotal || 0), 0);
+        const totalPagadoVal = pagosAll.filter(p => p.estado !== 'anulado').reduce((s, p) => s + (p.netoAPagar || 0), 0);
+        const saldoCuentas = totalGanado - totalComidasVal - totalCajaVal - totalPagadoVal;
+
+        const monthStr = String(month + 1).padStart(2, '0');
+        const prefix = `${year}-${monthStr}`;
+
+        const monthJornales = jornalesAll.filter(j => j.fecha.startsWith(prefix));
+        const monthComidas = comidasAll.filter(c => c.fecha.startsWith(prefix));
+        const monthKilos = monthJornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+        const monthGanado = monthJornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        let firstDayIndex = new Date(year, month, 1).getDay(); 
+        firstDayIndex = (firstDayIndex - 1 + 7) % 7;
+
+        const monthsNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        let calendarHtml = '';
+        
+        for (let i = 0; i < firstDayIndex; i++) {
+            calendarHtml += `<div style="aspect-ratio:1.1; background:transparent; border-radius:12px; border:1px solid transparent;"></div>`;
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayStr = String(day).padStart(2, '0');
+            const fechaStr = `${prefix}-${dayStr}`;
+
+            const dayJornales = monthJornales.filter(j => j.fecha === fechaStr);
+            const dayComidas = monthComidas.filter(c => c.fecha === fechaStr);
+
+            const kilos = dayJornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+            const hasFood = dayComidas.length > 0;
+            const hasJornal = dayJornales.length > 0;
+
+            let bgColor = 'var(--bg-card)';
+            let textColor = 'var(--text-muted)';
+            let borderStyle = '1px solid var(--border-color)';
+            let textInline = '';
+
+            if (kilos > 100) {
+                bgColor = '#15803d'; 
+                textColor = '#ffffff';
+                borderStyle = 'none';
+                textInline = `<div style="font-size:0.75rem; font-weight:800; margin-top:4px;">${kilos.toLocaleString()} kg</div>`;
+            } else if (kilos > 0) {
+                bgColor = 'rgba(34, 197, 94, 0.15)';
+                textColor = 'var(--color-primary)';
+                borderStyle = 'none';
+                textInline = `<div style="font-size:0.75rem; font-weight:700; margin-top:4px;">${kilos.toLocaleString()} kg</div>`;
+            } else if (kilos === 0 && (hasFood || hasJornal)) {
+                bgColor = '#fef3c7'; 
+                textColor = '#b45309'; 
+                borderStyle = '1px solid #d97706'; 
+                textInline = `<div style="font-size:0.6rem; font-weight:800; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:2px; justify-content:center; color:#b45309;"><i data-lucide="alert-triangle" style="width:10px;height:10px;"></i>Alerta</div>`;
+            } else {
+                textColor = 'var(--text-secondary)';
+            }
+
+            calendarHtml += `
+                <div class="calendar-day-cell clickable animate-in" onclick="Obreros.verDetalleDia(${o.id}, '${fechaStr}')"
+                     style="aspect-ratio:1.1; background:${bgColor}; color:${textColor}; border:${borderStyle}; border-radius:12px; display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer; padding:6px; transition:transform 0.15s, box-shadow 0.15s; position:relative; box-shadow:var(--shadow-sm);">
+                    <span style="font-size:0.9rem; font-weight:700; ${kilos > 100 ? 'color:#fff;' : ''}">${day}</span>
+                    ${textInline}
+                </div>
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="animate-in">
+                <!-- Info personal y financiera -->
+                <div class="card-premium" style="margin-bottom:20px; display:flex; flex-wrap:wrap; gap:16px; align-items:center; background:linear-gradient(135deg, var(--bg-surface) 0%, rgba(22, 163, 74, 0.03) 100%);">
+                    <div style="display:flex; align-items:center; gap:16px; flex:2; min-width:250px;">
+                        <div style="background:rgba(22,163,74,0.1); color:var(--color-primary); font-weight:800; width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:1.5rem">
+                            ${o.nombre.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}
+                        </div>
+                        <div>
+                            <h3 style="margin:0 0 4px; font-size:1.3rem; font-weight:800; color:var(--text-main)">${o.nombre}</h3>
+                            <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted);">
+                                <span><strong>Cédula:</strong> ${o.documento || 'N/A'}</span>
+                                <span><strong>Tel:</strong> ${o.telefono || 'N/A'}</span>
+                                <span><strong>Ingreso:</strong> ${o.fechaIngreso || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- KPI Rápido -->
+                    <div style="flex:1; min-width:150px; background:var(--bg-app); border:1px solid var(--border-color); border-radius:12px; padding:12px; text-align:right">
+                        <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; font-weight:700">Saldo Contable</div>
+                        <div class="tabular-data" style="font-size:1.25rem; font-weight:800; ${saldoCuentas >= 0 ? 'color:var(--color-primary)' : 'color:var(--color-danger)'}">
+                            $${saldoCuentas.toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Almanaque de Rendimiento -->
+                <div class="card-premium mb-2">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+                        <div style="display:flex; align-items:center; gap:8px">
+                            <div style="background:rgba(234, 88, 12, 0.1); color:var(--color-warning); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center">
+                                <i data-lucide="calendar" style="width:16px;height:16px;"></i>
+                            </div>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700">Almanaque de Rendimiento</h3>
+                        </div>
+                        
+                        <!-- Navegador de Mes -->
+                        <div style="display:flex; gap:6px; align-items:center">
+                            <button class="btn-premium secondary" onclick="Obreros.cambiarMesExpediente(-1)" style="padding:0 8px; height:36px; min-width:36px;"><i data-lucide="chevron-left"></i></button>
+                            <span style="font-weight:700; font-size:1rem; min-width:120px; text-align:center">${monthsNames[month]} ${year}</span>
+                            <button class="btn-premium secondary" onclick="Obreros.cambiarMesExpediente(1)" style="padding:0 8px; height:36px; min-width:36px;"><i data-lucide="chevron-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Rápidos de Mes -->
+                    <div class="grid-2 mb-2" style="margin-bottom:20px; gap:8px;">
+                        <div class="card-premium" style="padding:10px; background:var(--bg-app)!important; display:flex; justify-content:space-between; align-items:center">
+                            <span class="text-muted" style="font-size:0.8rem; font-weight:600">Producción en el Mes</span>
+                            <span class="tabular-data" style="font-weight:800; font-size:1.1rem; color:var(--color-primary)">${monthKilos.toLocaleString()} kg</span>
+                        </div>
+                        <div class="card-premium" style="padding:10px; background:var(--bg-app)!important; display:flex; justify-content:space-between; align-items:center">
+                            <span class="text-muted" style="font-size:0.8rem; font-weight:600">Dinero Devengado</span>
+                            <span class="tabular-data" style="font-weight:800; font-size:1.1rem; color:var(--text-main)">$${monthGanado.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <!-- Nomenclatura del Mapa de Calor -->
+                    <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.75rem; color:var(--text-secondary); margin-bottom:16px; padding:8px; background:var(--bg-app); border-radius:8px">
+                        <span style="font-weight:600; color:var(--text-main)">Mapa de calor:</span>
+                        <div style="display:flex; align-items:center; gap:4px"><span style="width:12px; height:12px; border-radius:3px; background:#15803d; display:inline-block"></span> Alta Recolección (>100kg)</div>
+                        <div style="display:flex; align-items:center; gap:4px"><span style="width:12px; height:12px; border-radius:3px; background:rgba(34, 197, 94, 0.15); border:1px solid var(--color-primary); display:inline-block"></span> Normal (>0kg)</div>
+                        <div style="display:flex; align-items:center; gap:4px"><span style="width:12px; height:12px; border-radius:3px; background:#fef3c7; border:1px solid #d97706; display:inline-block"></span> Alerta (Comida/Asist. sin Kilos)</div>
+                    </div>
+
+                    <!-- Calendario Grid -->
+                    <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">
+                        <!-- Cabecera de Días -->
+                        ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `
+                            <div style="text-align:center; font-weight:700; font-size:0.8rem; color:var(--text-muted); padding:8px 0">${d}</div>
+                        `).join('')}
+                        
+                        <!-- Celdas de Días -->
+                        ${calendarHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    async cambiarMesExpediente(dir) {
+        let month = Obreros._expActiveMonth + dir;
+        let year = Obreros._expActiveYear;
+        if (month < 0) {
+            month = 11;
+            year -= 1;
+        } else if (month > 11) {
+            month = 0;
+            year += 1;
+        }
+        Obreros._expActiveMonth = month;
+        Obreros._expActiveYear = year;
+        await Obreros.renderExpedienteDetalles();
+    },
+
+    async verDetalleDia(obreroId, fechaStr) {
+        const obrero = await db.get('obreros', obreroId);
+        if (!obrero) return;
+
+        const allJornales = await db.getAllByIndex('jornales', 'obreroId', obreroId);
+        const allComidas = await db.getAllByIndex('comida', 'obreroId', obreroId);
+        const allVentas = await db.getAllByIndex('ventasCaja', 'obreroId', obreroId);
+
+        const dayJornales = allJornales.filter(j => j.fecha === fechaStr);
+        const dayComidas = allComidas.filter(c => c.fecha === fechaStr);
+        const dayVentas = allVentas.filter(v => v.fecha === fechaStr);
+
+        const totalKilos = dayJornales.reduce((s, j) => s + (j.kilosRecolectados || 0), 0);
+        const totalGanado = dayJornales.reduce((s, j) => s + (j.totalDia || 0), 0);
+        const totalDeducciones = dayComidas.reduce((s, c) => s + (c.valor || 0), 0) + dayVentas.filter(v => v.fiado).reduce((s, v) => s + (v.valorTotal || 0), 0);
+
+        const lotes = await db.getByFinca('lotes');
+        const ltMap = Object.fromEntries(lotes.map(l => [l.id, l.nombre]));
+        const productos = await db.getByFinca('productos');
+        const prMap = Object.fromEntries(productos.map(p => [p.id, p.nombre]));
+
+        const formattedFecha = Ciclos.formatFecha(fechaStr);
+
+        const html = `
+            <div class="modal-system-overlay" onclick="Obreros.closeModal(event)" style="display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999">
+                <div class="card-premium animate-in" onclick="event.stopPropagation()" style="width:100%; max-width:440px; padding:24px;">
+                    <div class="header-premium" style="margin-bottom:16px;">
+                        <div class="header-icon" style="background:rgba(234, 88, 12, 0.1); color:var(--color-warning)"><i data-lucide="info"></i></div>
+                        <div style="flex:1">
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:800">Detalle del Día</h3>
+                            <p class="text-muted" style="font-size:0.85rem; margin:0">${obrero.nombre} &middot; ${formattedFecha}</p>
+                        </div>
+                        <button type="button" class="btn-icon-only" onclick="Obreros.closeModal()" style="border:none; background:transparent"><i data-lucide="x"></i></button>
+                    </div>
+
+                    <!-- Resumen del día -->
+                    <div class="grid-3 mb-2 tabular-data" style="margin-bottom:20px; gap:6px">
+                        <div class="card-premium" style="padding:8px; background:var(--bg-app)!important; text-align:center">
+                            <div class="text-muted" style="font-size:0.65rem; text-transform:uppercase; font-weight:700">Kilos</div>
+                            <div style="font-weight:800; font-size:1.1rem; color:var(--color-primary)">${totalKilos} kg</div>
+                        </div>
+                        <div class="card-premium" style="padding:8px; background:var(--bg-app)!important; text-align:center">
+                            <div class="text-muted" style="font-size:0.65rem; text-transform:uppercase; font-weight:700">Ganado</div>
+                            <div style="font-weight:800; font-size:1.1rem; color:var(--color-primary)">$${totalGanado.toLocaleString()}</div>
+                        </div>
+                        <div class="card-premium" style="padding:8px; background:var(--bg-app)!important; text-align:center">
+                            <div class="text-muted" style="font-size:0.65rem; text-transform:uppercase; font-weight:700">Deduc.</div>
+                            <div style="font-weight:800; font-size:1.1rem; color:var(--color-danger)">-$${totalDeducciones.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    <!-- Desglose Pesajes -->
+                    <div style="margin-bottom:16px">
+                        <h4 style="margin:0 0 8px; font-size:0.85rem; text-transform:uppercase; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px"><i data-lucide="scale" style="width:14px; color:var(--color-primary)"></i> Recolección (Pesajes)</h4>
+                        ${dayJornales.length === 0 ? `<p class="text-muted" style="font-size:0.8rem; margin:0; padding-left:20px;">No registra recolección.</p>` : `
+                            <div style="display:flex; flex-direction:column; gap:6px; padding-left:20px;">
+                                ${dayJornales.map(j => `
+                                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
+                                        <span class="text-muted">${ltMap[j.loteId] || 'Lote'} (AM: ${j.kilosAM || 0}kg / PM: ${j.kilosPM || 0}kg)</span>
+                                        <strong style="color:var(--text-main);">${j.kilosRecolectados} kg ($${(j.totalDia || 0).toLocaleString()})</strong>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Desglose Comidas -->
+                    <div style="margin-bottom:16px">
+                        <h4 style="margin:0 0 8px; font-size:0.85rem; text-transform:uppercase; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px"><i data-lucide="utensils-crossed" style="width:14px; color:var(--color-danger)"></i> Alimentación (Comedor)</h4>
+                        ${dayComidas.length === 0 ? `<p class="text-muted" style="font-size:0.8rem; margin:0; padding-left:20px;">No registra consumos.</p>` : `
+                            <div style="display:flex; flex-direction:column; gap:6px; padding-left:20px;">
+                                ${dayComidas.map(c => `
+                                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
+                                        <span class="text-muted" style="text-transform:capitalize;">${c.tipo} ${c.loteId ? `(${ltMap[c.loteId] || 'Lote'})` : ''}</span>
+                                        <strong style="color:var(--color-danger); font-weight:700;">-$${(c.valor || 0).toLocaleString()}</strong>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Desglose Vales Tienda -->
+                    <div style="margin-bottom:20px">
+                        <h4 style="margin:0 0 8px; font-size:0.85rem; text-transform:uppercase; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px"><i data-lucide="shopping-cart" style="width:14px; color:var(--color-danger)"></i> Cuentas de Tienda</h4>
+                        ${dayVentas.length === 0 ? `<p class="text-muted" style="font-size:0.8rem; margin:0; padding-left:20px;">No registra compras.</p>` : `
+                            <div style="display:flex; flex-direction:column; gap:6px; padding-left:20px;">
+                                ${dayVentas.map(v => `
+                                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
+                                        <span class="text-muted">${prMap[v.productoId] || v.descripcion || 'Compra'} (x${v.cantidad})</span>
+                                        <strong style="color:${v.fiado ? 'var(--color-danger)' : 'var(--color-success)'}; font-weight:700;">${v.fiado ? '-' : ''}$${(v.valorTotal || 0).toLocaleString()} <small style="font-size:0.6rem; font-weight:800;">${v.fiado ? 'FIADO' : 'EFEC.'}</small></strong>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <button type="button" class="btn-premium secondary w-100" onclick="Obreros.closeModal()">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        if (window.lucide) window.lucide.createIcons();
     },
 
     closeModal(e) {

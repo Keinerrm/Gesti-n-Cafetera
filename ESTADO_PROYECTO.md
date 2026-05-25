@@ -1,8 +1,8 @@
 # ☕ CaféControl — Estado del Proyecto
 
-> **Fecha:** 24 de mayo de 2026  
-> **Versión:** 2.0 (Supabase & Obrero Integration)  
-> **Estado:** En desarrollo activo — funcional con sincronización en la nube
+> **Fecha:** 25 de mayo de 2026  
+> **Versión:** 2.1 (Enfoque Finca Familiar)  
+> **Estado:** En desarrollo activo — funcional con sincronización en la nube e innovaciones contables
 
 ---
 
@@ -168,25 +168,35 @@ Gestion Cafetera/
 
 ---
 
-## 🚀 Funcionalidades Especiales de la Versión 2.0
+## 🚀 Funcionalidades Especiales de la Versión 2.1 (Enfoque Finca Familiar)
 
-1. **Portal Obrero de Alto Rendimiento**:
+1. **Motor de Cierre Estricto & Guardianes Contables (Seguridad)**:
+   - Indexación contable rígida de semanas en bloques de 4 semanas en `ciclos.js`.
+   - Estado `CLOSED` persistido de forma segura al archivar semanas o meses contables.
+   - Intercepción de mutaciones retrospectivas en `jornales.js`, `comida.js` y `caja.js`. Deshabilita de forma reactiva los formularios e impide guardar registros si la fecha se encuentra en un período cerrado.
+
+2. **Expediente Único de Obreros & Almanaque Híbrido (Analítica)**:
+   - Nueva pestaña de Expediente Único en el módulo de personal con buscador híbrido reactivo (Nombre o Cédula) optimizado para pantallas móviles y táctiles.
+   - Almanaque de Rendimiento mensual con mapa de calor y texto de kilos inline. Las celdas se tiñen de verde intenso (>100kg), verde claro, o color de advertencia ámbar si se registran comidas o asistencia pero sin kilos de café pesados.
+   - Micro-modal táctil con desglose detallado de jornales, comidas y fiados de tienda para cada día.
+
+3. **Asistente de Pagos Interactivos de 3 Pasos (Wizard)**:
+   - Conversión de la liquidación individual a un Wizard intuitivo paso a paso:
+     - **Paso 1: Rendimiento Bruto**: Muestra el total de kilos cosechados, ganancia bruta calculada y barra de progreso respecto a la meta semanal de 120 kg.
+     - **Paso 2: Deducciones Claras**: Tarjetas modulares para Comida, Tienda y Fletes con switches de encendido/apagado reactivos. Permite exonerar descuentos y recalcula los totales al instante.
+     - **Paso 3: Neto Real**: Visualización del neto en fuente grande con colores condicionales, recibo imprimible optimizado para formato físico thermal/PDF (`@media print`) y botón de envío directo por WhatsApp con formato emoji estructurado.
+
+4. **Portal Obrero de Alto Rendimiento**:
    - Acceso exclusivo para usuarios con rol `obrero` para consultar su actividad semanal de manera privada.
    - Resumen visual con barra de progreso circular para kilos acumulados.
    - Desglose de ingresos estimados (Kilos recolectados × tarifa) y descuentos de comida.
    - Historial en lista móvil con scroll infinito de jornales recientes.
 
-2. **Administración de Usuarios con Vínculo Dinámico**:
-   - Integración con base de datos de trabajadores activos.
-   - Al crear un usuario, permite vincularlo con un "Obrero" existente mediante un dropdown.
-   - Autocompleta automáticamente cédula, celular y nombre, agilizando el flujo del administrador.
+5. **Administración de Usuarios con Vínculo Dinámico**:
+   - Selector dinámico de roles de sistema (incluyendo la nueva opción de "Obrero") para dar de alta perfiles vinculados a trabajadores.
+   - Autocompleta automáticamente cédula, celular y nombre al vincular con un obrero existente, agilizando el flujo del administrador.
 
-3. **Experiencia de Inicio de Sesión Cinemática**:
-   - Fondo enriquecido con desenfoque de cristal (backdrop blur).
-   - Botón interactivo con estado de carga ("Validando...") que previene envíos múltiples.
+6. **Experiencia de Inicio de Sesión Cinemática & Selector de Apariencia**:
+   - Fondo enriquecido con desenfoque de cristal (glassmorphism) y botón interactivo con estado de carga ("Validando...").
    - Opción para visualizar contraseñas usando un botón con icono del ojo (Lucide SVG).
-
-4. **Selector de Apariencia con Cápsula Unida**:
-   - Menú flotante ubicado en el encabezado (Header), justo al lado del botón "Salir".
-   - Control horizontal con diseño premium de pastilla que agrupa los tres temas de CaféControl: **Café** (Coffee), **Claro** (Sun) y **Oscuro** (Moon).
-   - Animación fluida de selección activa y persistencia de tema.
+   - Selector de apariencia con cápsula horizontal en el header para cambiar fluidamente de tema visual (Café, Light, Dark).

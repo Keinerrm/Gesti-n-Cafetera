@@ -148,7 +148,7 @@ const Comida = {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:16px">
                     <div class="input-group" style="margin:0; min-width:200px">
                         <label class="text-muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700; margin-bottom:4px; display:block">Día Operativo</label>
-                        <input type="date" class="input-premium" id="cr-fecha" value="${today}" max="${today}" style="min-height:44px; font-weight:600" onchange="Comida.actualizarContadores()">
+                        <input type="date" class="input-premium" id="cr-fecha" value="${today}" max="${today}" style="min-height:44px; font-weight:600" onchange="Comida.validarFechaRapido(this.value); Comida.actualizarContadores()">
                     </div>
                     
                     <div class="input-group" style="margin:0; min-width:200px">
@@ -252,6 +252,9 @@ const Comida = {
         // Restaurar estado si existía
         Comida.restaurarDraft();
         if (window.lucide) window.lucide.createIcons();
+        setTimeout(() => {
+            Comida.validarFechaRapido(today);
+        }, 150);
     },
 
     /* --- Matriz Lógica --- */
@@ -531,7 +534,7 @@ const Comida = {
                     <div class="grid-3" style="margin-bottom:24px">
                         <div class="input-group" style="margin:0">
                             <label class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:700;margin-bottom:8px;display:block">Fecha</label>
-                            <input type="date" class="input-premium" id="cm-fecha" value="${today}" max="${today}" required>
+                            <input type="date" class="input-premium" id="cm-fecha" value="${today}" max="${today}" onchange="Comida.validarFechaIndividual(this.value)" required>
                         </div>
                         <div class="input-group" style="margin:0">
                             <label class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:700;margin-bottom:8px;display:block">Trabajador</label>
@@ -584,6 +587,9 @@ const Comida = {
             </style>
         `;
         if (window.lucide) window.lucide.createIcons();
+        setTimeout(() => {
+            Comida.validarFechaIndividual(today);
+        }, 150);
     },
 
     selectTipo(btn) {
@@ -591,6 +597,57 @@ const Comida = {
         btn.classList.add('active-tab-sim');
         document.getElementById('cm-tipo').value = btn.dataset.tipo;
         document.getElementById('cm-valor').value = btn.dataset.valor;
+    },
+
+    async validarFechaRapido(fecha) {
+        const isLocked = await Ciclos.isDateLocked(fecha);
+        const btn = document.getElementById('btn-save-comida-r');
+        if (isLocked) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="lock"></i> Período Cerrado';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            App.toast('🔒 Período Cerrado: No es posible realizar modificaciones en este ciclo contable.', 'warning');
+            document.querySelectorAll('.btn-meal, [data-tipo]').forEach(b => { b.disabled = true; b.style.pointerEvents = 'none'; b.style.opacity = '0.5'; });
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="save"></i> Registrar Comidas';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            document.querySelectorAll('.btn-meal, [data-tipo]').forEach(b => { b.disabled = false; b.style.pointerEvents = 'auto'; b.style.opacity = '1'; });
+        }
+    },
+
+    async validarFechaIndividual(fecha) {
+        const isLocked = await Ciclos.isDateLocked(fecha);
+        const btn = document.getElementById('btn-save-comida-ind');
+        const inputs = ['cm-obrero', 'cm-lote', 'cm-valor-custom'];
+        if (isLocked) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="lock"></i> Período Cerrado';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            App.toast('🔒 Período Cerrado: No es posible realizar modificaciones en este ciclo contable.', 'warning');
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = true;
+            });
+            document.querySelectorAll('[data-tipo]').forEach(b => { b.disabled = true; b.style.pointerEvents = 'none'; b.style.opacity = '0.5'; });
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="plus-circle"></i> Anexar Consumo al Trabajador';
+                if (window.lucide) window.lucide.createIcons();
+            }
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = false;
+            });
+            document.querySelectorAll('[data-tipo]').forEach(b => { b.disabled = false; b.style.pointerEvents = 'auto'; b.style.opacity = '1'; });
+        }
     },
 
     async save(e) {
