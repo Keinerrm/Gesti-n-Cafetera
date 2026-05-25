@@ -1,8 +1,8 @@
 # ☕ CaféControl — Estado del Proyecto
 
-> **Fecha:** 7 de marzo de 2026  
-> **Versión:** 1.2  
-> **Estado:** En desarrollo activo — funcional
+> **Fecha:** 24 de mayo de 2026  
+> **Versión:** 2.0 (Supabase & Obrero Integration)  
+> **Estado:** En desarrollo activo — funcional con sincronización en la nube
 
 ---
 
@@ -13,149 +13,95 @@
 El archivo `index.html` es el **esqueleto único** de toda la aplicación. CaféControl es una **SPA** (Single Page Application): el HTML define la estructura base (login, sidebar, área de contenido) y JavaScript se encarga de renderizar cada módulo dinámicamente dentro de `<main id="app">`.
 
 **Se usa para:**
-- Estructura semántica de la página
-- Formularios de login
-- Navegación (sidebar desktop + bottom nav mobile)
-- Meta tags para PWA (manifest, theme-color, viewport)
-- Carga de Google Fonts (Inter)
+- Estructura semántica de la página.
+- Formularios de login rediseñados con efecto glassmorphism y botón con cargador.
+- Navegación optimizada (sidebar desktop + bottom nav mobile).
+- Meta tags para PWA (manifest, theme-color, viewport) y soporte para notch.
+- Carga de Supabase SDK y Google Fonts (Inter).
 
-**Archivo:** `index.html` (197 líneas)
+**Archivo:** `index.html` (390 líneas)
 
 ---
 
-### CSS3
+### CSS3 (Vanilla & Custom Utility Engine)
 
-Un solo archivo `styles.css` contiene **todo el diseño visual** del sistema. No se usa ningún framework CSS. Todo está escrito a mano con un sistema de diseño basado en variables CSS.
+El sistema visual de la app está potenciado por tres archivos de estilo escritos a mano que gestionan la adaptabilidad del diseño mediante variables y clases de estilo avanzado (similares a Tailwind CSS).
 
-**Se usa para:**
-- **Variables CSS** (`--accent`, `--bg-card`, etc.) — cambian todo el tema desde un solo lugar
-- **Tema oscuro café** — colores inspirados en tonos de café tostado
-- **Layout responsive** — `@media` queries para desktop (sidebar) y mobile (bottom nav)
-- **Componentes** — cards, modals, toasts, tabs, badges, tablas, botones, checkboxes custom
-- **Animaciones** — `fadeIn`, `fadeInUp`, `slideUp`, `float`, `shake`
-- **Scrollbar personalizado** — estilo minimalista
+**Archivos:**
+- `css/styles.css` (2,071 líneas) — Diseño general de componentes, modales, toasts, animaciones y overrides premium.
+- `css/themes.css` (626 líneas) — Paletas de colores dinámicas para los temas (Café, Light, Dark).
+- `css/design-system.css` (243 líneas) — Sistema de tokens tipográficos, espaciados y sombras premium.
 
-**Archivo:** `css/styles.css` (~1,760 líneas)
-
-**Técnicas CSS usadas:**
+**Características CSS destacadas:**
 | Técnica | Uso en el proyecto |
 |---------|-------------------|
-| CSS Variables | Todo el sistema de colores, bordes, sombras, tipografía |
-| Flexbox | Layout de sidebar, cards, botones, modals |
-| CSS Grid | Grillas de stats (grid-2, grid-3, grid-4) |
-| Gradients | Botón primario, sidebar active, header de login |
-| `backdrop-filter: blur()` | Glassmorphism en login y bottom nav |
-| `position: sticky` | Headers de tablas que se fijan al hacer scroll |
-| `@media` queries | Responsive: 768px (tablet) y 480px (móvil) |
-| `env(safe-area-inset)` | Soporte para iPhones con notch |
-| `@media print` | Estilos de impresión para recibos |
-| Custom checkboxes | Planilla de comida con animaciones |
+| CSS Variables | Control global del cambio de tema (Café, Claro, Oscuro). |
+| Flexbox y Grid | Layouts responsivos de modales, grillas de stats y el grid del Portal de Obreros. |
+| Glassmorphic Login | Efectos de desenfoque (`backdrop-filter`) de nivel cinematográfico en el Login. |
+| Animations | Micro-animaciones e interactividad al enfocar campos, botones y transiciones de carga. |
+| @media Queries | Grid dinámico que pasa de una columna en móvil a múltiples columnas en pantallas de escritorio. |
+| @media print | Soporte de impresión optimizado para facturas y recibos de pago de obreros. |
 
 ---
 
-### JavaScript (ES6+ Vanilla)
+### JavaScript (ES6+ Vanilla & Supabase Client)
 
-**14 archivos JS** conforman toda la lógica del sistema. No se usa React, Vue, Angular, jQuery ni ningún framework. Todo es JavaScript puro moderno (ES6+).
+La lógica de negocio y presentación está distribuida en **21 archivos JavaScript**, eliminando por completo la necesidad de frameworks pesados (React, Vue, Angular). Todo es código nativo altamente modular.
 
 **Se usa para:**
-- Lógica de negocio de cada módulo
-- Router SPA (navegación sin recargar la página)
-- Interacción con IndexedDB (base de datos)
-- Renderizado dinámico del DOM (template literals)
-- Validación de formularios
-- Cálculos financieros (pagos, liquidaciones)
-- Generación de PDFs con jsPDF
-- Gestión de estado (localStorage, sessionStorage)
+- Integración en tiempo real con **Supabase** (Autenticación y Persistencia SQL).
+- Router SPA que renderiza módulos de manera segura basándose en roles del usuario.
+- Encriptación y validación de datos en cliente (`SHA-256` para contraseñas locales).
+- Construcción y manipulación dinámica del DOM mediante plantillas de texto (Template Literals).
+- Renderizado de estadísticas en tiempo real y descarga de reportes PDF dinámicos.
 
 **Archivos y responsabilidades:**
 
 | Archivo | Líneas | Responsabilidad |
 |---------|--------|----------------|
-| `db.js` | ~260 | Base de datos IndexedDB — CRUD genérico, config, helpers |
-| `app.js` | ~120 | Router SPA, autenticación, navegación, toast notifications |
-| `dashboard.js` | ~310 | Panel principal, KPIs, gráficos, alertas inteligentes, selector de finca |
-| `obreros.js` | ~180 | CRUD de trabajadores, perfil con stats |
-| `lotes.js` | ~170 | CRUD de lotes, cálculo de kg/ha |
-| `jornales.js` | ~510 | Registro rápido masivo + individual de recolección |
-| `asistencia.js` | ~130 | Calendario visual de asistencia mensual |
-| `comida.js` | ~500 | Planilla de checkboxes + registro individual de comida |
-| `caja.js` | ~350 | Punto de venta, inventario, ventas fiadas |
-| `cascota.js` | ~140 | Control de cáscara de café por lote |
-| `conversion.js` | ~140 | Conversión café rojo → mojado |
-| `pagos.js` | ~375 | Liquidación con descuento de fiado, recibos, WhatsApp |
-| `reportes.js` | ~350 | Reportes por obrero/lote/finca, export CSV + PDF |
-| `config.js` | ~150 | Tarifas, precios, contraseña, backup/restore |
-
-**Características de JS usadas:**
-
-| Característica ES6+ | Ejemplo de uso |
-|---------------------|----------------|
-| `async/await` | Todas las operaciones con IndexedDB |
-| Template literals | Renderizado de HTML dinámico |
-| `const/let` | Variables con scope de bloque |
-| Arrow functions `=>` | Callbacks, `.map()`, `.filter()`, `.reduce()` |
-| Destructuring | `const { jsPDF } = window.jspdf` |
-| `Promise` | Capa de datos en `db.js` |
-| `Object.entries()` | Iteración de stores de IDB |
-| Spread operator `...` | `{ ...l, totalKilos: kilos }` |
-| Optional chaining `?.` | `document.getElementById('x')?.value` |
-| Módulos como objetos | `const Dashboard = { render() {}, ... }` |
+| `app.js` | 741 | Router SPA principal, control de accesos (guards) por rol, autenticación, animaciones de login y notificaciones flotantes (Toasts). |
+| `config.js` | 921 | Configuración de tarifas, base de usuarios administrativos, sincronización en nube y carga/vínculo dinámico de obreros a cuentas del sistema. |
+| `pagos.js` | 867 | Liquidación de recolectores, descuentos de comida y tienda, exportación a WhatsApp y recibos. |
+| `reportes.js` | 711 | Consultas analíticas de producción, exportación a CSV e integraciones con visor de reportes. |
+| `comida.js` | 688 | Planilla de alimentación masiva con guardado automático y borradores persistentes. |
+| `asistencia.js` | 679 | Calendario mensual interactivo de asistencia por trabajador. |
+| `jornales.js` | 632 | Planilla rápida de recolección de café diario (individual y masiva). |
+| `caja.js` | 576 | Punto de venta interno de la finca (caja registradora), registro de deudas y abonos. |
+| `dashboard.js` | 576 | Métricas generales, selector de finca activa, gráficos rápidos de rendimiento y alertas proactivas. |
+| `obreros.js` | 534 | Altas, bajas e historial de recolectores/obreros registrados en la finca. |
+| `ciclos.js` | 501 | Control de períodos o ciclos de cosecha activos e históricos en la finca. |
+| `mi-rendimiento.js` | 434 | **Portal del Obrero (Módulo Obrero)**: Vista responsiva optimizada para móviles que muestra a los recolectores su acumulado semanal, estimación de ganancias brutas/netas, historial de pesajes diarios y botón de cierre/cápsula de apariencias. |
+| `db.js` | 379 | Capa de base de datos unificada que actúa como adaptador de consultas hacia el cliente de Supabase. |
+| `pdf.js` | 252 | Configuración e inicialización de jsPDF para reportes y exportación física offline. |
+| `transporte.js` | 208 | Registro de envíos de café y costos de transporte/fletes. |
+| `historial.js` | 198 | Listados históricos de movimientos financieros y pesajes detallados. |
+| `conversion.js` | 193 | Conversión y cálculo de rendimiento de café cereza a café pergamino seco. |
+| `theme.js` | 164 | Lógica del motor de temas globales (Café, Light, Dark) con persistencia en localStorage. |
+| `cascota.js` | 157 | Registro y control de café en pasilla / cáscara por lote. |
+| `supabase.js` | 3 | Instanciador y configurador global del cliente Supabase. |
 
 ---
 
-### IndexedDB
+### Supabase & Base de Datos SQL
 
-Base de datos **NoSQL del navegador**. Los datos se almacenan localmente y persisten incluso sin internet. No se usa Firebase, SQLite ni ningún servidor — todo vive en el navegador del usuario.
+CaféControl ha migrado de una base puramente offline (IndexedDB) a una arquitectura **Cloud Híbrida con Supabase (PostgreSQL)**, permitiendo multi-dispositivo con control de acceso granular y seguridad a nivel de base de datos.
 
 **Se usa para:**
-- Almacenar todos los registros (obreros, jornales, comida, ventas, pagos, etc.)
-- 12 object stores (tablas)
-- Índices para búsquedas rápidas por obreroId, loteId, fecha, fincaId
-- Versionado con migración automática (actualmente v3)
-- Backup/restore (exportar/importar como JSON)
-
-**Stores actuales:**
-
-```
-obreros, lotes, jornales, asistencia, comida,
-productos, ventasCaja, cascota, conversion,
-pagos, fincas, config
-```
+- **Autenticación en la nube:** Control de inicio de sesión seguro para roles administrativos y obreros.
+- **Roles en la base de datos:** `super_admin`, `admin`, `tienda`, `transporte`, `cuenta` y `obrero`.
+- **Políticas de Seguridad RLS:** Restricciones estrictas para que los recolectores solo puedan consultar su información personal y registros propios de rendimiento.
+- **Esquema Relacional:** Tablas para usuarios, obreros, jornales, comidas y configuraciones globales vinculadas dinámicamente.
 
 ---
 
 ### Service Worker + PWA
 
-El `sw.js` convierte la app en una **Progressive Web App** instalable que funciona offline.
+El Service Worker (`sw.js`) garantiza el funcionamiento de la SPA incluso en ubicaciones rurales sin señal móvil.
 
-**Se usa para:**
-- Cachear todos los archivos estáticos (HTML, CSS, JS, fuentes)
-- Estrategia **cache-first** — sirve desde cache, luego actualiza
-- `manifest.json` — nombre, colores, iconos, modo standalone
-- Instalable en Android/iOS como app nativa
-
-**Limitación:** El Service Worker solo funciona con `localhost` o `https://`. No funciona con `file:///`.
-
----
-
-### jsPDF (librería externa)
-
-Única dependencia externa del proyecto. Archivo local `js/lib/jspdf.umd.min.js` (~97KB).
-
-**Se usa para:**
-- Generar reportes en PDF descargables
-- Layout profesional con header, tablas con bordes, footer con paginación
-- Funciona 100% offline (archivo local, no CDN)
-
----
-
-### JSON
-
-**Se usa para:**
-- `manifest.json` — configuración de la PWA
-- `package.json` — no existe (no hay npm)
-- Backup de datos — export/import como `.json`
-- `.vscode/launch.json` — configuración de desarrollo
+**Beneficios:**
+- Estrategia **Cache-First** para activos estáticos (HTML, CSS, JS, Iconos).
+- `manifest.json` configurado para comportamiento de aplicación standalone a pantalla completa.
+- Pestaña agregable a pantallas de inicio de iOS y Android.
 
 ---
 
@@ -164,37 +110,45 @@ El `sw.js` convierte la app en una **Progressive Web App** instalable que funcio
 ```
 Gestion Cafetera/
 │
-├── index.html              ← SPA shell (197 líneas)
-├── manifest.json           ← Config PWA
-├── sw.js                   ← Service Worker
-├── DOCUMENTACION.md        ← Documentación completa
+├── index.html              ← SPA shell principal (390 líneas)
+├── manifest.json           ← Configuración PWA
+├── sw.js                   ← Service Worker offline
+├── DOCUMENTACION.md        ← Guía de uso y APIs
 ├── ESTADO_PROYECTO.md      ← Este archivo
+├── supabase_usuarios.sql   ← Migración de esquema y políticas RLS
 │
 ├── css/
-│   └── styles.css          ← Todo el diseño (~1,760 líneas)
+│   ├── design-system.css   ← Tokens y variables de diseño (243 líneas)
+│   ├── styles.css          ← Todo el diseño interactivo (2,071 líneas)
+│   └── themes.css          ← Definición de paletas de color (626 líneas)
 │
 ├── js/
 │   ├── lib/
-│   │   └── jspdf.umd.min.js  ← Generador de PDF
+│   │   └── jspdf.umd.min.js ← Librería local de generación de PDFs
 │   │
-│   ├── db.js               ← IndexedDB (datos)
-│   ├── app.js              ← Router + auth
-│   ├── dashboard.js        ← Panel + alertas + fincas
-│   ├── obreros.js          ← Trabajadores
-│   ├── lotes.js            ← Lotes + kg/ha
-│   ├── jornales.js         ← Recolección diaria
-│   ├── asistencia.js       ← Calendario
-│   ├── comida.js           ← Alimentación
-│   ├── caja.js             ← Tienda
-│   ├── cascota.js          ← Cáscara de café
-│   ├── conversion.js       ← Rojo → mojado
-│   ├── pagos.js            ← Liquidación
-│   ├── reportes.js         ← Reportes + PDF
-│   └── config.js           ← Configuración
+│   ├── app.js              ← Router SPA, auth visual y notificaciones
+│   ├── asistencia.js       ← Gestión de asistencia
+│   ├── caja.js             ← Punto de venta e inventario
+│   ├── cascota.js          ← Control de pasilla/cáscara
+│   ├── ciclos.js           ← Ciclos de cosecha
+│   ├── comida.js           ← Planilla de alimentación
+│   ├── config.js           ← Gestión administrativa y vínculo de obreros
+│   ├── conversion.js       ← Rendimientos de cereza a seco
+│   ├── dashboard.js        ← Estadísticas generales y alertas
+│   ├── db.js               ← Capa adaptador de base de datos
+│   ├── historial.js        ← Auditorías de jornales
+│   ├── jornales.js         ← Planilla de recolección diaria
+│   ├── lotes.js            ← Administración de terrenos/lotes
+│   ├── mi-rendimiento.js   ← Módulo/Portal Obrero premium
+│   ├── obreros.js          ← Perfiles de recolectores
+│   ├── pagos.js            ← Liquidación y facturas de pago
+│   ├── pdf.js              ← Controlador jsPDF
+│   ├── reportes.js         ← Exportaciones analíticas
+│   ├── supabase.js         ← Cliente global de Supabase
+│   └── theme.js            ← Gestor visual de color de la app
 │
 └── .vscode/
-    ├── launch.json          ← Debug con Chrome
-    └── settings.json        ← Config Live Server
+    └── mcp.json            ← Ajustes locales de desarrollo (Ignorado en Git)
 ```
 
 ---
@@ -203,109 +157,36 @@ Gestion Cafetera/
 
 | Métrica | Valor |
 |---------|-------|
-| Archivos totales | ~20 |
-| Líneas de JavaScript | ~3,685 |
-| Líneas de CSS | ~1,760 |
-| Líneas de HTML | ~197 |
-| **Total código** | **~5,642 líneas** |
-| Módulos funcionales | 12 |
-| Object stores IDB | 12 |
-| Dependencias externas | 1 (jsPDF) |
-| Frameworks | **0** |
-| Peso total (sin jsPDF) | ~85 KB |
+| Archivos totales | ~30 |
+| Líneas de JavaScript | **~9,638** |
+| Líneas de CSS | **~2,940** |
+| Líneas de HTML | **~390** |
+| **Total de código fuente** | **~12,968 líneas** |
+| Módulos funcionales | 16 |
+| Base de Datos Principal | **Supabase (PostgreSQL Cloud)** |
+| Frameworks Frontend | **0 (Pure Vanilla ES6+)** |
 
 ---
 
-## 🚀 Funcionalidades Implementadas
+## 🚀 Funcionalidades Especiales de la Versión 2.0
 
-| # | Módulo | Funcionalidad principal | Estado |
-|---|--------|------------------------|--------|
-| 1 | Dashboard | KPIs, gráficos, top lotes/recolectores | ✅ |
-| 2 | Dashboard | Alertas inteligentes (producción, stock, inactividad) | ✅ |
-| 3 | Dashboard | Selector multi-finca con CRUD | ✅ |
-| 4 | Obreros | CRUD + perfil con estadísticas | ✅ |
-| 5 | Lotes | CRUD + producción/hectárea (kg/ha) | ✅ |
-| 6 | Jornales | Registro rápido masivo (planilla para 20+ obreros) | ✅ |
-| 7 | Jornales | Registro individual con AM/PM | ✅ |
-| 8 | Asistencia | Calendario visual mensual clickeable | ✅ |
-| 9 | Comida | Registro rápido masivo con checkboxes | ✅ |
-| 10 | Comida | Autoguardado borrador + restaurar | ✅ |
-| 11 | Caja | Punto de venta + inventario + fiado | ✅ |
-| 12 | Cascota | Control por lote | ✅ |
-| 13 | Conversión | Rojo → mojado con factor configurable | ✅ |
-| 14 | Pagos | Liquidación con descuento automático de fiado | ✅ |
-| 15 | Pagos | Recibo imprimible + compartir por WhatsApp | ✅ |
-| 16 | Reportes | CSV exportable para Excel | ✅ |
-| 17 | Reportes | PDF exportable con jsPDF | ✅ |
-| 18 | Config | Tarifas, precios, backup/restore JSON | ✅ |
-| 19 | PWA | Instalable + offline (Service Worker) | ✅ |
+1. **Portal Obrero de Alto Rendimiento**:
+   - Acceso exclusivo para usuarios con rol `obrero` para consultar su actividad semanal de manera privada.
+   - Resumen visual con barra de progreso circular para kilos acumulados.
+   - Desglose de ingresos estimados (Kilos recolectados × tarifa) y descuentos de comida.
+   - Historial en lista móvil con scroll infinito de jornales recientes.
 
----
+2. **Administración de Usuarios con Vínculo Dinámico**:
+   - Integración con base de datos de trabajadores activos.
+   - Al crear un usuario, permite vincularlo con un "Obrero" existente mediante un dropdown.
+   - Autocompleta automáticamente cédula, celular y nombre, agilizando el flujo del administrador.
 
-## 🧱 Arquitectura
+3. **Experiencia de Inicio de Sesión Cinemática**:
+   - Fondo enriquecido con desenfoque de cristal (backdrop blur).
+   - Botón interactivo con estado de carga ("Validando...") que previene envíos múltiples.
+   - Opción para visualizar contraseñas usando un botón con icono del ojo (Lucide SVG).
 
-```
-┌─────────────────────────────────────────┐
-│              index.html (SPA)           │
-│  ┌─────────┐  ┌─────────┐  ┌────────┐  │
-│  │ Sidebar │  │  #app   │  │ Toasts │  │
-│  │  (nav)  │  │ (main)  │  │        │  │
-│  └─────────┘  └────┬────┘  └────────┘  │
-│                    │                     │
-│  ┌─────────────────┼───────────────────┐ │
-│  │            app.js (Router)          │ │
-│  │  hash → render módulo correcto     │ │
-│  └─────────────────┼───────────────────┘ │
-│                    │                     │
-│  ┌─────────────────┼───────────────────┐ │
-│  │     Módulos (dashboard, obreros,    │ │
-│  │     jornales, comida, pagos, etc.)  │ │
-│  │     Cada uno: { render(), save() }  │ │
-│  └─────────────────┼───────────────────┘ │
-│                    │                     │
-│  ┌─────────────────┼───────────────────┐ │
-│  │          db.js (IndexedDB)          │ │
-│  │   add, put, get, getAll, delete     │ │
-│  │   getAllByFinca, getConfig          │ │
-│  └─────────────────────────────────────┘ │
-│                                          │
-│  ┌──────────────────────────────────────┐│
-│  │    sw.js (Service Worker / Cache)    ││
-│  └──────────────────────────────────────┘│
-└──────────────────────────────────────────┘
-```
-
-**Patrón de diseño:** Cada módulo es un **objeto JavaScript** con métodos (`render`, `save`, `delete`, `loadHistory`, etc.). El router en `app.js` escucha el hash de la URL (`#dashboard`, `#obreros`, etc.) y llama al `render()` del módulo correspondiente.
-
----
-
-## 🛠️ Entorno de Desarrollo
-
-| Herramienta | Uso |
-|-------------|-----|
-| VS Code | Editor de código |
-| Live Server (extensión) | Servidor local en puerto 5500 |
-| Chrome DevTools | Debug, IndexedDB inspector, console |
-| Sin Node.js | No se requiere npm ni paquetes |
-| Sin bundler | No webpack, no vite — archivos directos |
-
----
-
-## 📝 Por qué estas tecnologías
-
-**¿Por qué vanilla JS sin frameworks?**
-- La app debe funcionar **offline en zonas rurales** con conexión limitada
-- Cero dependencias = cero problemas de instalación
-- Se abre con doble click en `index.html` o con Live Server
-- Peso mínimo (~85 KB sin contar jsPDF)
-- Cualquier persona con conocimiento básico de JS puede mantenerla
-
-**¿Por qué IndexedDB y no localStorage?**
-- `localStorage` tiene límite de 5MB y solo guarda strings
-- IndexedDB soporta **cientos de MB**, almacena objetos, tiene índices para búsquedas rápidas
-- Ideal para una app con miles de registros de jornales, ventas y comidas
-
-**¿Por qué PWA?**
-- Se instala como app nativa en celulares Android/iOS
-- Funciona sin internet después de la primera carga
-- El administrador de la finca puede usarla desde su celular en el campo
+4. **Selector de Apariencia con Cápsula Unida**:
+   - Menú flotante ubicado en el encabezado (Header), justo al lado del botón "Salir".
+   - Control horizontal con diseño premium de pastilla que agrupa los tres temas de CaféControl: **Café** (Coffee), **Claro** (Sun) y **Oscuro** (Moon).
+   - Animación fluida de selección activa y persistencia de tema.
