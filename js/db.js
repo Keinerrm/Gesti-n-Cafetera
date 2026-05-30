@@ -72,7 +72,8 @@ class CafeDB {
             'netoapagar': 'netoAPagar',
             'valortotal': 'valorTotal',
             'preciokilo': 'precioKilo',
-            'valorjornal': 'valorJornal'
+            'valorjornal': 'valorJornal',
+            'mescontable': 'mesContable'
         };
 
         for (const [key, value] of Object.entries(data)) {
